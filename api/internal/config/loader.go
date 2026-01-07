@@ -1,10 +1,14 @@
 package config
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 )
 
 type Config struct {
@@ -18,6 +22,7 @@ type Config struct {
 
 	RedisHost     string
 	RedisPort     int64
+	RedisPassword string
 	RedisDb       int64
 	RedisProtocol int64
 }
@@ -71,5 +76,28 @@ func LoadConfig() (*Config, error) {
 		RedisPort:     redisport,
 		RedisDb:       redisdb,
 		RedisProtocol: redprotocol,
+		RedisPassword: os.Getenv("REDIS_PASSWORD"),
 	}, nil
+}
+
+func ConnectRedis(cfg *Config) (*redis.Client, error) {
+	addr := fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort)
+	fmt.Println("Debug redis ADDR:", addr)
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: cfg.RedisPassword,
+		DB:       int(cfg.RedisDb),
+		Protocol: int(cfg.RedisProtocol),
+	})
+
+	// Testa conexão (Ping) para falhar cedo se estiver inválida
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		return nil, err
+	}
+
+	return rdb, nil
 }
