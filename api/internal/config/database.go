@@ -18,7 +18,7 @@ type DbConfig struct {
 }
 
 func ConnectDatabase(cfg *DbConfig) (db *gorm.DB, err error) {
-	dns := fmt.Sprintf("user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=America/Sao_Paulo", cfg.DbUser, cfg.DbPassword, cfg.DbName, cfg.DbPort)
+	dns := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=America/Sao_Paulo", cfg.DbHost, cfg.DbUser, cfg.DbPassword, cfg.DbName, cfg.DbPort)
 	db, err = gorm.Open(postgres.New(postgres.Config{
 		DSN:                  dns,
 		PreferSimpleProtocol: false,
