@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"svitorz/url-shortner/internal/config"
-	"svitorz/url-shortner/internal/models"
 	"svitorz/url-shortner/internal/requests"
 )
 
@@ -21,7 +20,7 @@ func main() {
 	}
 	fmt.Println("carregou configuracoes")
 
-	models.LoadMigrations()
+	//models.LoadMigrations()
 
 	fmt.Println("Executando migrations")
 

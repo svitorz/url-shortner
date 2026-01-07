@@ -8,8 +8,17 @@ import (
 func LoadMigrations() {
 	rep := repository.DB
 	var err error
+
+	if rep.Migrator().HasTable(&User{}) {
+		rep.Migrator().DropTable(&User{})
+	}
+
 	if err = rep.Migrator().CreateTable(&User{}); err != nil {
 		fmt.Println("Erro ao realizar a migration da tabela user", err)
+	}
+
+	if rep.Migrator().HasTable(&Link{}) {
+		rep.Migrator().DropTable(&Link{})
 	}
 
 	if err = rep.Migrator().CreateTable(&Link{}); err != nil {
