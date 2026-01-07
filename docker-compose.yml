@@ -1,0 +1,30 @@
+services: 
+  api:
+    container_name: url-shortner-api
+    build: api/
+    depends_on:
+      db: 
+        condition: service_healthy
+        restart: true
+    env_file:
+      - ".env"
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+  redis:
+    container_name: url-shortner-redis
+    image: redis
+  db:
+    container_name: url-shortner-db
+    image: postgres:18
+    ports:
+      - ${DB_PORT}:${DB_PORT}
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${DB_USER} -d $${DB_NAME}"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
