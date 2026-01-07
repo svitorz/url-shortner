@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"svitorz/url-shortner/internal/config"
-
-	"github.com/gin-gonic/gin"
+	"svitorz/url-shortner/internal/requests"
+	"time"
 )
 
 func main() {
@@ -17,14 +18,13 @@ func main() {
 
 	fmt.Println(cfg)
 
-	router := gin.Default()
-	router.GET("/ping", func(c *gin.Context) {
-		fmt.Println(c.Request.Body)
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
-	fmt.Println("Router carregado", router)
+	rdb, err := config.ConnectRedis(cfg)
 
-	router.Run(fmt.Sprintf(":%d", cfg.AppPort))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rdb.Close()
+
+	r := requests.SetupRouter(rdb, 10, time.Minute)
+	r.Run(fmt.Sprintf(":%d", cfg.AppPort))
 }
