@@ -15,9 +15,10 @@ var appRoutes = []Route{
 				"message": "pong",
 			})
 		}, useAuth: false,
-	}, {
+	},
+	{
 		Path:   "/links",
-		Method: http.MethodPost,
+		Method: http.MethodGet,
 		HandlerFunc: func(c *gin.Context) {
 			c.JSON(200, gin.H{
 				"message": "pong",
@@ -26,7 +27,7 @@ var appRoutes = []Route{
 	},
 	{
 		Path:   "/links",
-		Method: http.MethodGet,
+		Method: http.MethodPost,
 		HandlerFunc: func(c *gin.Context) {
 			c.JSON(200, gin.H{
 				"message": "pong",

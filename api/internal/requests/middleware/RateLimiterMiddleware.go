@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"net/http"
-	"svitorz/url-shortner/internal/ratelimit"
+	"svitorz/url-shortner/internal/requests/ratelimit"
 
 	"github.com/gin-gonic/gin"
 )
