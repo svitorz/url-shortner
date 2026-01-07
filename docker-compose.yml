@@ -8,6 +8,8 @@ services:
         restart: true
     env_file:
       - ".env"
+    volumes:
+      - ./.env:/app/.env:ro
     ports:
       - "${APP_PORT}:${APP_PORT}"
   redis:
