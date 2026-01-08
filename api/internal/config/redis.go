@@ -19,23 +19,22 @@ type RedisConfig struct {
 }
 
 func LoadRedisConf() (*RedisConfig, error) {
-	var cfg *RedisConfig
 	redisport, err := strconv.ParseInt(os.Getenv("REDIS_PORT"), 10, 64)
 
 	if err != nil {
-		return cfg, err
+		return &RedisConfig{}, err
 	}
 
 	redisdb, err := strconv.ParseInt(os.Getenv("REDIS_DB"), 10, 64)
 
 	if err != nil {
-		return cfg, err
+		return &RedisConfig{}, err
 	}
 
 	redprotocol, err := strconv.ParseInt(os.Getenv("REDIS_PROTOCOL"), 10, 64)
 
 	if err != nil {
-		return cfg, err
+		return &RedisConfig{}, err
 	}
 	return &RedisConfig{
 		RedisHost:     os.Getenv("REDIS_HOST"),
