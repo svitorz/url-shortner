@@ -20,6 +20,7 @@ func init() {
 		fmt.Println("Erro ao carregar configuracoes da api", err)
 	}
 }
+
 func GenerateToken(userID uint) (string, error) {
 	claims := jwt.MapClaims{}
 	claims["authorized"] = true
@@ -44,13 +45,23 @@ func TokenValid(c *gin.Context) error {
 }
 
 func ExtractToken(c *gin.Context) string {
-	token := c.Query("token")
-	if token != "" {
+	if token := strings.TrimSpace(c.Query("token")); token != "" {
 		return token
 	}
-	bearerToken := c.Request.Header.Get("Authorization")
-	if len(strings.Split(bearerToken, " ")) == 2 {
-		return strings.Split(bearerToken, " ")[1]
+	bearer := strings.TrimSpace(c.GetHeader("Authorization"))
+	if bearer == "" {
+		return ""
+	}
+
+	const prefix = "bearer "
+	lower := strings.ToLower(bearer)
+	if strings.HasPrefix(lower, prefix) {
+		return strings.TrimSpace(bearer[len("Bearer "):])
+	}
+
+	parts := strings.SplitN(bearer, " ", 2)
+	if len(parts) == 2 {
+		return strings.TrimSpace(parts[1])
 	}
 	return ""
 }

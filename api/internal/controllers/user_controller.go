@@ -75,7 +75,7 @@ func UpdateUser(c *gin.Context) {
 	id, err := auth.ExtractTokenID(c)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error:": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -121,8 +121,6 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("hash:", user.Password)
-	fmt.Println("input:", input.Password)
 	if valid := auth.VerifyPassword(user.Password, input.Password); !valid {
 		log.Println("Invalid password attempt for user:", user.Email)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
