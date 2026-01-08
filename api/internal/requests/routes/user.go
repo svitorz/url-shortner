@@ -15,25 +15,25 @@ var userRoutes = []Route{
 	{
 		Path:        "/user/:id",
 		Method:      http.MethodPut,
-		HandlerFunc: controllers.CreateUser,
+		HandlerFunc: controllers.UpdateUser,
 		useAuth:     false,
 	},
 	{
 		Path:        "/user/:id",
 		Method:      http.MethodDelete,
-		HandlerFunc: controllers.CreateUser,
+		HandlerFunc: controllers.DeleteUser,
 		useAuth:     false,
 	},
 	{
 		Path:        "/login",
-		Method:      http.MethodDelete,
-		HandlerFunc: controllers.CreateUser,
+		Method:      http.MethodPost,
+		HandlerFunc: controllers.Login,
 		useAuth:     false,
 	},
 	{
 		Path:        "/logout",
-		Method:      http.MethodDelete,
-		HandlerFunc: controllers.CreateUser,
+		Method:      http.MethodPost,
+		HandlerFunc: controllers.Logout,
 		useAuth:     false,
 	},
 }
