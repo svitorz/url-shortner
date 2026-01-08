@@ -88,6 +88,11 @@ func UpdateUser(c *gin.Context) {
 
 	repository.DB.First(&user, id)
 
+	if user.ID != bind.ID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "you can not edit a user who are not you"})
+		return
+	}
+
 	user.Name = input.Name
 	user.Email = &input.Email
 	user.UpdatedAt = time.Now()
@@ -102,7 +107,46 @@ func UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusAccepted, "User updated successfully")
 }
 
-func DeleteUser(c *gin.Context) {}
+func DeleteUser(c *gin.Context) {
+	var bind struct {
+		ID uint `uri:"id" binding:"required"`
+	}
+
+	if err := c.ShouldBindUri(&bind); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	id, err := auth.ExtractTokenID(c)
+
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	if id != bind.ID {
+		c.JSON(http.StatusForbidden, gin.H{"unauthorized": "you have not permission to do that"})
+		return
+	}
+
+	var user models.User
+
+	repository.DB.First(&user, id)
+
+	if user.ID != bind.ID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "you can not delete a user who are not you"})
+		return
+	}
+
+	tx := repository.DB.Delete(&user)
+
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": tx.Error})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+}
 
 func Login(c *gin.Context) {
 	var input struct {
