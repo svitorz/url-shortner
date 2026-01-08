@@ -11,11 +11,19 @@ type Route struct {
 	useAuth     bool
 }
 
-func Config(r *gin.Engine) *gin.Engine {
-	routes := appRoutes
-	routes = append(routes, userRoutes...)
-	for _, route := range routes {
-		r.Handle(route.Method, route.Path, route.HandlerFunc)
+func AllRoutes() []Route {
+	r := make([]Route, 0, len(appRoutes)+len(userRoutes))
+	r = append(r, appRoutes...)
+	r = append(r, userRoutes...)
+	return r
+}
+func Config(r *gin.Engine, authMw gin.HandlerFunc) *gin.Engine {
+	for _, route := range AllRoutes() {
+		if route.useAuth && authMw != nil {
+			r.Handle(route.Method, route.Path, authMw, route.HandlerFunc)
+		} else {
+			r.Handle(route.Method, route.Path, route.HandlerFunc)
+		}
 	}
 	return r
 }

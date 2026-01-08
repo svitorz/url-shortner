@@ -13,7 +13,7 @@ func SetupRouter() *gin.Engine {
 
 	r.Use(middleware.RateLimiterMiddleware())
 
-	r.Use(middleware.AuthMiddleware())
+	authMw := middleware.AuthRequired()
 
-	return routes.Config(r)
+	return routes.Config(r, authMw)
 }
