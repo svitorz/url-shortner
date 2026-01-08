@@ -13,6 +13,7 @@ type Route struct {
 
 func Config(r *gin.Engine) *gin.Engine {
 	routes := appRoutes
+	routes = append(routes, userRoutes...)
 	for _, route := range routes {
 		r.Handle(route.Method, route.Path, route.HandlerFunc)
 	}
