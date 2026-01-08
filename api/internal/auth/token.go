@@ -2,27 +2,31 @@ package auth
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
+	"svitorz/url-shortner/internal/config"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func GenerateToken(userID uint) (string, error) {
-	tokenlifespan, err := strconv.Atoi("3600")
-	if err != nil {
-		return "", err
-	}
+var ApiConfig *config.ApiConfig
 
+func init() {
+	var err error
+	ApiConfig, err = config.LoadApiConfig()
+	if err != nil {
+		fmt.Println("Erro ao carregar configuracoes da api", err)
+	}
+}
+func GenerateToken(userID uint) (string, error) {
 	claims := jwt.MapClaims{}
 	claims["authorized"] = true
 	claims["user_id"] = userID
-	claims["exp"] = time.Now().Add(time.Minute * time.Duration(tokenlifespan)).Unix()
+	claims["exp"] = time.Now().Add(time.Minute * time.Duration(ApiConfig.TokenLifeSpan)).Unix()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte("PWeRAUl29c"))
+	return token.SignedString([]byte(ApiConfig.ApiKey))
 }
 
 func TokenValid(c *gin.Context) error {
@@ -31,7 +35,7 @@ func TokenValid(c *gin.Context) error {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(os.Getenv("PWeRAUl29c")), nil
+		return []byte(ApiConfig.ApiKey), nil
 	})
 	if err != nil {
 		return err
@@ -52,13 +56,12 @@ func ExtractToken(c *gin.Context) string {
 }
 
 func ExtractTokenID(c *gin.Context) (uint, error) {
-
 	tokenString := ExtractToken(c)
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(os.Getenv("API_SECRET")), nil
+		return []byte(ApiConfig.ApiKey), nil
 	})
 	if err != nil {
 		return 0, err
