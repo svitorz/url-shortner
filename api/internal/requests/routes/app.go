@@ -23,7 +23,7 @@ var appRoutes = []Route{
 			c.JSON(200, gin.H{
 				"message": "pong",
 			})
-		}, useAuth: false,
+		}, useAuth: true,
 	},
 	{
 		Path:   "/links",
@@ -32,7 +32,7 @@ var appRoutes = []Route{
 			c.JSON(200, gin.H{
 				"message": "pong",
 			})
-		}, useAuth: false,
+		}, useAuth: true,
 	},
 	{
 		Path:   "/links/:slug",
@@ -41,7 +41,7 @@ var appRoutes = []Route{
 			c.JSON(200, gin.H{
 				"message": "pong",
 			})
-		}, useAuth: false,
+		}, useAuth: true,
 	},
 	{
 		Path:   "/links/:slug",
@@ -50,7 +50,7 @@ var appRoutes = []Route{
 			c.JSON(200, gin.H{
 				"message": "pong",
 			})
-		}, useAuth: false,
+		}, useAuth: true,
 	},
 	{
 		Path:   "/r/:slug",
