@@ -63,7 +63,9 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	if valid := auth.VerifyPassword(input.Password, user.Password); !valid {
+	fmt.Println("hash:", user.Password)
+	fmt.Println("input:", input.Password)
+	if valid := auth.VerifyPassword(user.Password, input.Password); !valid {
 		log.Println("Invalid password attempt for user:", user.Email)
 		c.JSON(401, gin.H{"error": "Invalid email or password"})
 		return
