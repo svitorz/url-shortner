@@ -2,6 +2,8 @@ package ratelimit
 
 import (
 	"context"
+	"fmt"
+	"svitorz/url-shortner/internal/config"
 	"svitorz/url-shortner/internal/repository"
 	"time"
 
@@ -15,16 +17,22 @@ type rateLimiter struct {
 	window time.Duration
 }
 
-func RateLimiter(c *gin.Context) (bool, error) {
-	limit := 10
-	window := time.Minute
-	client := repository.RDB
-	rl := &rateLimiter{
-		client: client,
-		limit:  limit,
-		window: window,
+var rl *rateLimiter
+
+func init() {
+	cfg, err := config.LoadRateLimitConf()
+
+	if err != nil {
+		fmt.Println("Erro ao buscar configuracoes do rate limiter")
 	}
 
+	rl = &rateLimiter{
+		client: repository.RDB,
+		limit:  cfg[0],
+		window: time.Duration(cfg[1] * time.Now().Minute()),
+	}
+}
+func RateLimiter(c *gin.Context) (bool, error) {
 	key := c.ClientIP()
 	ok, err := rl.allow(c.Request.Context(), key)
 	if err != nil {
