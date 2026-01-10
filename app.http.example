@@ -1,0 +1,66 @@
+@base=
+@token=
+
+####################
+#   Users routes   #
+####################
+POST {{base}}/user HTTP/1.1
+Content-Type: application/json
+
+{
+    "full_name": "Your name here",
+    "email":"your email here",
+    "password": "your password here"
+}
+
+### Login
+POST {{base}}/login HTTP/1.1
+Content-Type: application/json
+
+{
+    "email":"your email here",
+    "password": "your password here"
+}
+
+### Update user
+PUT {{base}}/user/{{id}} HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{token}} 
+
+{
+    "full_name": "your name here",
+    "email":"your email here"
+}
+
+### Delete User
+DELETE {{base}}/user/{{id}} HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{token}} 
+
+####################
+#   Links routes   #
+####################
+
+### ping
+GET {{base}}/ping HTTP/1.1
+Content-Type: application/json
+
+### create link
+POST {{base}}/links HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{token}} 
+
+{
+    "target_url": "insert a url here"
+}
+
+@slug=
+
+###
+POST {{base}}/links/{{slug}}/deactivate HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{token}} 
+
+###
+GET {{base}}/r/{{slug}} HTTP/1.1
+Content-Type: application/json
