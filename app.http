@@ -1,5 +1,5 @@
 @base=http://localhost:8000
-@token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE3NjgwNzI1NTAsInVzZXJfaWQiOjR9.FBQfdNyingCNLWy8xWt3aDol1R9ioEAW4-B8IEXjEpE
+@token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE3NjgwNzQ2NjAsInVzZXJfaWQiOjR9.3f2yxIsfdjZq7o1U2sx-FyuS_0zButz5wi2WwJCSs_A
 
 ####################
 #   Users routes   #
