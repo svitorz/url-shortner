@@ -30,8 +30,8 @@ var appRoutes = []Route{
 		useAuth:     true,
 	},
 	{
-		Path:        "/links/:slug",
-		Method:      http.MethodDelete,
+		Path:        "/links/:slug/deactivate",
+		Method:      http.MethodPost,
 		HandlerFunc: controllers.DeactivateLink,
 		useAuth:     true,
 	},
