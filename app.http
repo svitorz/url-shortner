@@ -1,5 +1,5 @@
 @base=http://localhost:8000
-@token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE3Njc4OTUyNzUsInVzZXJfaWQiOjF9.RuYIjVvRIz3ntiHtXh0_tw4cJGk9nMUvrx6GRsk-bIg
+@token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRob3JpemVkIjp0cnVlLCJleHAiOjE3NjgwNzAyNDMsInVzZXJfaWQiOjN9.wrH-6fAfBwwu8nlI_N3LiK9jcS4VCvYq_tAoOMseE3g
 
 ####################
 #   Users routes   #
@@ -23,7 +23,7 @@ Content-Type: application/json
 }
 
 ### Update user
-PUT {{base}}/user/1 HTTP/1.1
+PUT {{base}}/user/3 HTTP/1.1
 Content-Type: application/json
 Authorization: Bearer {{token}} 
 
@@ -45,22 +45,26 @@ Authorization: Bearer {{token}}
 GET {{base}}/ping HTTP/1.1
 Content-Type: application/json
 
-### get links
-GET {{base}}/links HTTP/1.1
-Content-Type: application/json
-
 ### create link
 POST {{base}}/links HTTP/1.1
 Content-Type: application/json
+Authorization: Bearer {{token}} 
 
+{
+    "target_url": "https://svitorz.dev"
+}
+
+@slug=https-svitorz-dev
 ###
-GET {{base}}/links/{slug} HTTP/1.1
+GET {{base}}/links/{{slug}} HTTP/1.1
 Content-Type: application/json
+Authorization: Bearer {{token}} 
 
 ###
-DELETE {{base}}/links/{slug} HTTP/1.1
+DELETE {{base}}/links/{{slug}} HTTP/1.1
 Content-Type: application/json
+Authorization: Bearer {{token}} 
 
 ###
-GET {{base}}/r/{slug} HTTP/1.1
+GET {{base}}/r/{{slug}} HTTP/1.1
 Content-Type: application/json
