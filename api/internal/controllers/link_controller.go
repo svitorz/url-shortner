@@ -1,17 +1,17 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"svitorz/url-shortner/internal/auth"
 	"svitorz/url-shortner/internal/models"
 	"svitorz/url-shortner/internal/repository"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gosimple/slug"
+	"gorm.io/gorm"
 )
 
 func CreateLink(c *gin.Context) {
@@ -31,38 +31,47 @@ func CreateLink(c *gin.Context) {
 		return
 	}
 
-	url, err := url.Parse(input.TargetUrl)
-
-	if err != nil {
-		fmt.Println("Erro parse url em CreateLink", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+	parsed, err := url.Parse(input.TargetUrl)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid target_url"})
 		return
 	}
 
-	slugified := slug.Make(url.String())
+	slugified := slug.Make(parsed.String())
 
-	link := models.Link{
-		Slug:      slugified,
-		TargetURL: input.TargetUrl,
-		IsActive:  true,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		OwnerID:   userId,
-	}
+	var link models.Link
 
-	result := repository.DB.FirstOrCreate(&link)
+	tx := repository.DB.
+		Where(models.Link{Slug: slugified}).
+		Attrs(models.Link{
+			TargetURL: input.TargetUrl,
+			IsActive:  true,
+			OwnerID:   userId,
+		}).
+		FirstOrCreate(&link)
 
-	if result.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": result.Error.Error()})
+	if tx.Error != nil {
+		if errors.Is(tx.Error, gorm.ErrDuplicatedKey) {
+			c.JSON(http.StatusConflict, gin.H{"error": "slug already taken"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": tx.Error.Error()})
 		return
 	}
 
-	log.Printf("User created: %v", link)
+	scheme := "http"
+	if c.Request.TLS != nil {
+		scheme = "https"
+	}
+	base := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
+	redirectURL := fmt.Sprintf("%s/r/%s", base, slugified)
 
-	redirectUrl := fmt.Sprintf("%s/r/%s", c.Request.URL, slugified)
-
-	fmt.Println(redirectUrl)
-	c.JSON(http.StatusCreated, gin.H{"success": http.StatusCreated, "url": redirectUrl})
+	c.JSON(http.StatusCreated, gin.H{
+		"id":    link.ID,
+		"slug":  slugified,
+		"url":   redirectURL,
+		"owner": link.OwnerID,
+	})
 }
 
 func GetLinkDetails(c *gin.Context) {
