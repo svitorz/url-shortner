@@ -24,15 +24,21 @@ Agora, acesse seu `localhost` na porta em você configurou.
 
 ### Usuários
 > POST /user - cria um usuário
-> put /user - atualiza
-> delete /user - exclui
+
+> PUT /user - atualiza
+
+> DELETE /user - exclui
+
 > POST /login - autentica
 
 ### Links:
 
 > POST /links — cria link curto
+
 > GET /links/:slug — detalhes do link
+
 > POST /links/:slug — desativa
+
 > GET /r/:slug — redireciona 
 
 > [!TIP]
