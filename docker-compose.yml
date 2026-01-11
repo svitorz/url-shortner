@@ -39,6 +39,16 @@ services:
       timeout: 10s
     networks:
       - url-shortner-network
+  # Novo: servidor de desenvolvimento do Vite (SPA)
+  web:
+    container_name: url-shortner-web
+    build: 
+      web/
+    expose:
+      - "${WEB_PORT}"
+    environment:
+      VITE_API_BASE: /api
+
   proxy:
     container_name: url-shortner-nginx
     image: nginx:latest
@@ -47,20 +57,11 @@ services:
         source: ./proxy/nginx.conf
         target: /etc/nginx/conf.d/default.conf
         read_only: true
-    networks:
-      - url-shortner-network
+    depends_on:
+      - api
+      - web
     ports:
       - 80:80
-
-  web:
-    build:
-      web/
-    networks:
-      - url-shortner-network
-    expose:
-      - "${WEB_PORT}"
-    environment:
-      - APP_PORT=${WEB_PORT}
 networks:
   url-shortner-network:
     driver: bridge
