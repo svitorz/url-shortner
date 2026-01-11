@@ -23,7 +23,7 @@ onMounted(() => {
 <template>
   <main>
     <div class="justify-center items-center">
-      <button @click="getPing">
+      <button @click="getPing" type="button">
           ping
       </button>
       <span>
