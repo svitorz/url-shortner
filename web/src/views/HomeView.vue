@@ -1,14 +1,15 @@
-dcl<script setup>
+<script setup>
 import { ref, onMounted } from 'vue';
+
 const response = ref("");
 
 const getPing = async () => {
   try {
-    const response = await fetch('http://localhost:8000/ping');
-    if (!response.ok) {
+    const res = await fetch('http://localhost:8000/api/ping'); 
+    if (!res.ok) {
       throw new Error('Network response was not ok');
     }
-    response.value = await response.json();
+    response.value = await res.json();
   } catch (error) {
     console.error('There was a problem with the fetch operation:', error);
   }
@@ -22,8 +23,8 @@ onMounted(() => {
 
 <template>
   <main>
-    <div class="justify-center items-center">
-      <button @click="getPing" type="button">
+    <div class="justify-center items-center text-center">
+      <button @click="getPing">
           ping
       </button>
       <span>
