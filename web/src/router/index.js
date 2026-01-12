@@ -1,11 +1,11 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import PingView from '../views/PingView.vue'
 import RegisterView from '../views/RegisterView.vue'
+import LoginView from '../views/LoginView.vue'
 
 const router = createRouter({
-  linkActiveClass: 'text-gray-900',
-  // link: 'text-gray-500 hover:border-gray-300 hover:text-gray-700',
-  history: createWebHistory(import.meta.env.BASE_URL),
+  linkActiveClass: 'text-gray-900 border-indigo-600 ',
+  history: createWebHashHistory(),
   routes: [
     {
       path: '/',
@@ -16,6 +16,11 @@ const router = createRouter({
       path: '/register',
       name: 'register',
       component: RegisterView,
+    },
+    {
+      path: '/login',
+      name: 'login',
+      component: LoginView,
     },
   ],
 })
