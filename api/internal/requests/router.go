@@ -11,20 +11,22 @@ import (
 
 func SetupRouter() *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery())
-
-	r.Use(middleware.RateLimiterMiddleware())
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
-		AllowHeaders:     []string{"Origin"},
+		AllowOrigins:     []string{"http://localhost:5173", "http://localhost", "http://web:5173", "http://172.20.0.2:8080"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
 
+	r.Use(gin.Logger(), gin.Recovery(), middleware.RateLimiterMiddleware())
+
 	authMw := middleware.AuthRequired()
 
-	return routes.Config(r, authMw)
+	api := r.Group("/api")
+	routes.Config(api, authMw)
+
+	return r
 }

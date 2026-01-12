@@ -17,7 +17,8 @@ func AllRoutes() []Route {
 	r = append(r, userRoutes...)
 	return r
 }
-func Config(r *gin.Engine, authMw gin.HandlerFunc) *gin.Engine {
+
+func Config(r gin.IRoutes, authMw gin.HandlerFunc) {
 	for _, route := range AllRoutes() {
 		if route.useAuth && authMw != nil {
 			r.Handle(route.Method, route.Path, authMw, route.HandlerFunc)
@@ -25,5 +26,4 @@ func Config(r *gin.Engine, authMw gin.HandlerFunc) *gin.Engine {
 			r.Handle(route.Method, route.Path, route.HandlerFunc)
 		}
 	}
-	return r
 }
