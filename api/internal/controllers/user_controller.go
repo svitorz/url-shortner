@@ -49,7 +49,18 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 	log.Printf("User created: %v", user)
-	c.JSON(http.StatusCreated, "User created successfully")
+
+	token, err := auth.GenerateToken(user.ID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Error generating token"})
+		return
+	}
+	log.Printf("Token generated: %s", token)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "User created successfully",
+		"token":   token,
+	})
 }
 
 func UpdateUser(c *gin.Context) {
