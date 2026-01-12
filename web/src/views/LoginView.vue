@@ -1,31 +1,13 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { ref } from 'vue';
 import { MinusIcon } from '@heroicons/vue/24/outline';
 import axios from 'axios';
-
-const firstName = ref('');
-const lastName = ref('');
-
-const fullName = computed({
-  get() {
-    return `${firstName.value} ${lastName.value}`.trim();
-  },
-  set(newValue) {
-    const parts = newValue.split(' ');
-    firstName.value = parts.shift() ?? '';
-    lastName.value = parts.join(' ');
-  }
-});
+import router from '@/router';
 
 const user = ref({
-  full_name: '',
   email: '',
   password: '',
 });
-
-watch([firstName, lastName], () => {
-  user.value.full_name = fullName.value;
-}, { immediate: true });
 
 const loading = ref(false);
 const response = ref('');
@@ -35,26 +17,6 @@ const errorMessage = ref('');
 const validationErrors = ref([]);
 const validationSuccess = ref(true);
 
-function validateForm() {
-  validationErrors.value = [];
-  validationSuccess.value = true;
-
-  if (!user.value.email?.trim()) {
-    validationErrors.value.push('Email required.');
-    validationSuccess.value = false;
-  }
-
-  const passwordSizeMin = 8;
-  if ((user.value.password?.length ?? 0) < passwordSizeMin) {
-    validationErrors.value.push(`Password must be higher or equal than ${passwordSizeMin} digits.`);
-    validationSuccess.value = false;
-  }
-
-  if (validationSuccess.value) {
-    submitForm();
-  }
-}
-
 async function submitForm() {
   loading.value = true;
   hasError.value = false;
@@ -63,28 +25,24 @@ async function submitForm() {
 
   try {
     const payload = {
-      full_name: fullName.value,
       email: user.value.email.trim(),
       password: user.value.password,
     };
 
-    const res = await axios.post('http://localhost:8000/api/user', payload);
+    const res = await axios.post('http://localhost:8000/api/login', payload);
     response.value = res.data?.message ?? 'User created';
+    localStorage.setItem('token', res.data?.token);
   } catch (err) {
     hasError.value = true;
-    // Mensagem amigável
     errorMessage.value = err?.response?.data?.message ?? err?.message ?? 'Unknown error';
     console.error(err);
   } finally {
-    localStorage.setItem('token', res.data?.token);
     loading.value = false;
+    router.push('/')
   }
 }
 
 function resetFields() {
-  firstName.value = '';
-  lastName.value = '';
-  user.value.full_name = '';
   user.value.email = '';
   user.value.password = '';
 
@@ -121,18 +79,6 @@ function resetFields() {
           </div>
           <div class="px-4 py-6 sm:p-8" v-else>
             <div class="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-              <div class="sm:col-span-3">
-                <label for="first-name" class="block text-sm/6 font-medium text-gray-900">First name</label>
-                <div class="mt-2">
-                  <input type="text" v-model="firstName" name="first-name" id="first-name" autocomplete="given-name" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6" />
-                </div>
-              </div>
-              <div class="sm:col-span-3">
-                <label for="last-name" class="block text-sm/6 font-medium text-gray-900">Last name</label>
-                <div class="mt-2">
-                  <input type="text" v-model="lastName" name="last-name" id="last-name" autocomplete="family-name" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6" />
-                </div>
-              </div>
               <div class="sm:col-span-4">
                 <label for="email" class="block text-sm/6 font-medium text-gray-900">Email address</label>
                 <div class="mt-2">
@@ -149,7 +95,7 @@ function resetFields() {
           </div>
           <div class="flex items-center justify-end gap-x-6 border-t border-gray-900/10 px-4 py-4 sm:px-8">
             <button type="button" @click="resetFields" class="text-sm/6 font-semibold text-gray-900 border border-2 px-2 py-1 rounded-md hover:bg-gray-300 border-gray-300">Cancel</button>
-            <button type="button" @click="validateForm" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Save</button>
+            <button type="button" @click="submitForm" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Log in</button>
           </div>
         </div>
       </div>
