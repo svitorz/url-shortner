@@ -14,10 +14,7 @@ async function testPing() {
   try {
     const res = await axios.get('http://localhost:8000/api/ping');
     info.value = res.data?.message ?? '';
-    console.log("response:",res)
-    console.log("info:",info.value)
   } catch (err) {
-    console.error(err);
     hasError.value = true;
   } finally {
     loading.value = false;
