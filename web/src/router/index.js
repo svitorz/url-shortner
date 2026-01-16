@@ -7,6 +7,7 @@ import AccountView from '../views/AccountView.vue'
 import CreateLinkView from '../views/CreateLinkView.vue'
 import LinkDetailsView from '../views/LinkDetailsView.vue'
 import RedirectTesterView from '../views/RedirectTesterView.vue'
+import MyLinksView from '@/views/MyLinksView.vue'
 
 const router = createRouter({
   linkActiveClass: 'text-gray-900 border-indigo-600 ',
@@ -19,6 +20,7 @@ const router = createRouter({
     { path: '/links/new', name: 'links-new', component: CreateLinkView, meta: { requiresAuth: true } },
     { path: '/links/:slug', name: 'links-details', component: LinkDetailsView, meta: { requiresAuth: true } },
     { path: '/test-redirect', name: 'redirect-tester', component: RedirectTesterView },
+    { path: '/links', name: 'links-all', component: MyLinksView },
   ],
 })
 
