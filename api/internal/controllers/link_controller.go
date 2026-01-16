@@ -74,6 +74,34 @@ func CreateLink(c *gin.Context) {
 	})
 }
 
+func GetAllLinks(c *gin.Context) {
+	id, err := auth.ExtractTokenID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	var links []models.Link
+	if err := repository.DB.WithContext(c.Request.Context()).
+		Where("owner_id = ?", id).
+		Find(&links).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	responseLinks := make([]map[string]any, 0, len(links))
+	for _, element := range links {
+		responseLinks = append(responseLinks, map[string]any{
+			"slug":        element.Slug,
+			"target_url":  element.TargetURL,
+			"is_active":   element.IsActive,
+			"last_change": element.UpdatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"links": responseLinks})
+}
+
 func GetLinkDetails(c *gin.Context) {
 	var link models.Link
 

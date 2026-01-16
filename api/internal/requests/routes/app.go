@@ -19,6 +19,12 @@ var appRoutes = []Route{
 	},
 	{
 		Path:        "/links",
+		Method:      http.MethodGet,
+		HandlerFunc: controllers.GetAllLinks,
+		useAuth:     true,
+	},
+	{
+		Path:        "/links",
 		Method:      http.MethodPost,
 		HandlerFunc: controllers.CreateLink,
 		useAuth:     true,
