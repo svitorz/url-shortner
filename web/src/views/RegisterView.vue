@@ -1,159 +1,61 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
-import { MinusIcon } from '@heroicons/vue/24/outline';
-import axios from 'axios';
+import { ref } from 'vue';
+import api from '../services/API';
 
-const firstName = ref('');
-const lastName = ref('');
-
-const fullName = computed({
-  get() {
-    return `${firstName.value} ${lastName.value}`.trim();
-  },
-  set(newValue) {
-    const parts = newValue.split(' ');
-    firstName.value = parts.shift() ?? '';
-    lastName.value = parts.join(' ');
-  }
-});
-
-const user = ref({
-  full_name: '',
-  email: '',
-  password: '',
-});
-
-watch([firstName, lastName], () => {
-  user.value.full_name = fullName.value;
-}, { immediate: true });
-
+const form = ref({ full_name: '', email: '', password: '' });
 const loading = ref(false);
-const response = ref('');
-const hasError = ref(false);
-const errorMessage = ref('');
+const success = ref('');
+const error = ref('');
 
-const validationErrors = ref([]);
-const validationSuccess = ref(true);
-
-function validateForm() {
-  validationErrors.value = [];
-  validationSuccess.value = true;
-
-  if (!user.value.email?.trim()) {
-    validationErrors.value.push('Email required.');
-    validationSuccess.value = false;
-  }
-
-  const passwordSizeMin = 8;
-  if ((user.value.password?.length ?? 0) < passwordSizeMin) {
-    validationErrors.value.push(`Password must be higher or equal than ${passwordSizeMin} digits.`);
-    validationSuccess.value = false;
-  }
-
-  if (validationSuccess.value) {
-    submitForm();
-  }
-}
-
-async function submitForm() {
+async function submit() {
   loading.value = true;
-  hasError.value = false;
-  response.value = '';
-  errorMessage.value = '';
+  success.value = '';
+  error.value = '';
 
   try {
-    const payload = {
-      full_name: fullName.value,
-      email: user.value.email.trim(),
-      password: user.value.password,
-    };
-
-    const res = await axios.post('http://localhost:8000/api/user', payload);
-    response.value = res.data?.message ?? 'User created';
-  } catch (err) {
-    hasError.value = true;
-    // Mensagem amigável
-    errorMessage.value = err?.response?.data?.message ?? err?.message ?? 'Unknown error';
-    console.error(err);
+    const res = await api.post('/user', {
+      full_name: form.value.full_name.trim(),
+      email: form.value.email.trim(),
+      password: form.value.password,
+    });
+    success.value = res.data?.message ?? 'Usuário criado com sucesso';
+    form.value = { full_name: '', email: '', password: '' };
+  } catch (e) {
+    error.value = e?.response?.data?.error ?? e?.message ?? 'Erro ao criar usuário';
   } finally {
-    localStorage.setItem('token', res.data?.token);
     loading.value = false;
   }
 }
-
-function resetFields() {
-  firstName.value = '';
-  lastName.value = '';
-  user.value.full_name = '';
-  user.value.email = '';
-  user.value.password = '';
-
-  loading.value = false;
-  response.value = '';
-  hasError.value = false;
-  errorMessage.value = '';
-  validationErrors.value = [];
-  validationSuccess.value = true;
-}
 </script>
 
-
 <template>
-    <div class="p-10 m-12 w-full">
-      <div class="grid grid-cols-1 gap-x-8 gap-y-8 py-10 md:grid-cols-3">
-        <div class="px-4 sm:px-0">
-          <h2 class="text-base/7 font-semibold text-gray-900">Personal Information</h2> 
-          <p class="mt-1 text-sm/6 text-gray-600">Use a permanent address where you can access application.</p>
-        </div>
-        <div v-if="loading">
-            <div class="animate-spin">
-              <MinusIcon />
-            </div>
-        </div>
-        <div v-else class="bg-white shadow-sm outline outline-1 outline-gray-900/5 sm:rounded-xl md:col-span-2">
-          <div v-if="!validationSuccess">
-              <div v-for="validation in validationErrors">
-                <p class="text-red-600"> {{  validation  }} </p>
-              </div>
-          </div>
-          <div v-if="hasError">
-              <p class="text-red-600"> {{  error }} </p>
-          </div>
-          <div class="px-4 py-6 sm:p-8" v-else>
-            <div class="grid max-w-2xl grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-              <div class="sm:col-span-3">
-                <label for="first-name" class="block text-sm/6 font-medium text-gray-900">First name</label>
-                <div class="mt-2">
-                  <input type="text" v-model="firstName" name="first-name" id="first-name" autocomplete="given-name" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6" />
-                </div>
-              </div>
-              <div class="sm:col-span-3">
-                <label for="last-name" class="block text-sm/6 font-medium text-gray-900">Last name</label>
-                <div class="mt-2">
-                  <input type="text" v-model="lastName" name="last-name" id="last-name" autocomplete="family-name" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6" />
-                </div>
-              </div>
-              <div class="sm:col-span-4">
-                <label for="email" class="block text-sm/6 font-medium text-gray-900">Email address</label>
-                <div class="mt-2">
-                  <input id="email" v-model="user.email" name="email" type="email" autocomplete="email" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6" />
-                </div>
-              </div>
-              <div class="sm:col-span-4">
-                <label for="email" class="block text-sm/6 font-medium text-gray-900">Password</label>
-                <div class="mt-2">
-                  <input id="password" v-model="user.password" name="password" type="password" class="block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6" />
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="flex items-center justify-end gap-x-6 border-t border-gray-900/10 px-4 py-4 sm:px-8">
-            <button type="button" @click="resetFields" class="text-sm/6 font-semibold text-gray-900 border border-2 px-2 py-1 rounded-md hover:bg-gray-300 border-gray-300">Cancel</button>
-            <button type="button" @click="validateForm" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Save</button>
-          </div>
-        </div>
+  <main class="max-w-md mx-auto p-6">
+    <h1 class="text-xl font-semibold mb-4">Criar conta</h1>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Nome completo</label>
+        <input v-model="form.full_name" type="text" class="mt-1 block w-full rounded border-gray-300 px-3 py-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Email</label>
+        <input v-model="form.email" type="email" class="mt-1 block w-full rounded border-gray-300 px-3 py-2" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Senha</label>
+        <input v-model="form.password" type="password" class="mt-1 block w-full rounded border-gray-300 px-3 py-2" />
       </div>
 
-      <div v-if="response" class="mt-4 text-green-700">{{ response }}</div>
+      <button
+        class="w-full rounded bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+        :disabled="loading"
+        @click="submit"
+      >
+        {{ loading ? 'Criando...' : 'Criar conta' }}
+      </button>
+
+      <p v-if="success" class="text-green-600 text-sm">{{ success }}</p>
+      <p v-if="error" class="text-red-600 text-sm">{{ error }}</p>
     </div>
+  </main>
 </template>

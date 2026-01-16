@@ -1,6 +1,7 @@
 import { ref, onMounted } from 'vue';
 
 const isAuthenticated = ref(false);
+const isExpired = ref(false)
 
 function checkAuthStatus() {
   isAuthenticated.value = !!localStorage.getItem('token');

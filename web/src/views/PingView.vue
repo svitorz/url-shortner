@@ -1,7 +1,6 @@
 <script setup>
 import axios from 'axios';
 import { onMounted, ref } from 'vue';
-import { SlashIcon } from '@heroicons/vue/24/outline';
 
 const info = ref("");
 const loading = ref(true);
@@ -25,30 +24,20 @@ onMounted(testPing);
 </script>
 
 <template>
-  <main>
-    <div class="justify-center items-center text-center p-5 w-full">
-      <div class="w-1/2">
-        <button class="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600" 
-                @click="testPing"
-        >
-          Teste ping
-        </button>
-      </div>
-      <div class="w-1/2">
-        <section v-if="hasError">
-          <p>Perdão, ocorreu um erro na nossa API.</p>
-        </section>
+  <main class="max-w-2xl mx-auto p-6">
+    <div class="space-y-4 text-center">
+      <h1 class="text-2xl font-bold">Teste de Ping</h1>
+      <button
+        class="rounded bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+        @click="testPing"
+      >
+        Re-testar ping
+      </button>
 
-        <section v-else>
-          <div v-if="loading">
-            <SlashIcon class="animate-spin block size-6" />
-          <p>Carregando...</p>
-          </div>
-
-          <div v-else>
-            <p>Resposta: {{ info }}</p>
-          </div>
-        </section>
+      <div v-if="loading" class="text-gray-600">Carregando...</div>
+      <div v-else-if="hasError" class="text-red-600">Falha no ping</div>
+      <div v-else class="text-green-700 font-medium">
+        {{ info }}
       </div>
     </div>
   </main>
