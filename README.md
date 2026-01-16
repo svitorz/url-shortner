@@ -1,6 +1,6 @@
 # URL shortner
 #### autor: svitorz
-Essa aplicação foi construída com GoLang, Docker, PostgreSQL, Redis e NGINX.
+Essa aplicação foi construída com GoLang, VUE (JavaScript), Docker, PostgreSQL, Redis e NGINX.
 
 Para executar, utilize os comandos:
 ```bash 
