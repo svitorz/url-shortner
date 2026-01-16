@@ -30,7 +30,7 @@ async function createLink() {
     <h1 class="text-xl font-semibold">Criar link curto</h1>
     <div>
       <label class="block text-sm font-medium text-gray-700">URL de destino</label>
-      <input v-model="targetUrl" type="url" placeholder="https://example.com" class="mt-1 block w-full rounded border-gray-300 px-3 py-2" />
+      <input v-model="targetUrl" type="url" placeholder="https://example.com" class="mt-1 block w-full rounded border border-blue-800 px-3 py-2" />
     </div>
 
     <button

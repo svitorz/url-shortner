@@ -30,23 +30,6 @@ async function updateUser() {
   }
 }
 
-async function deleteUser() {
-  loadingDelete.value = true;
-  msg.value = ''; err.value = '';
-  if (!form.value.id) {
-    err.value = 'Informe o ID do usuário';
-    loadingDelete.value = false;
-    return;
-  }
-  try {
-    await api.delete(`/user/${form.value.id}`);
-    msg.value = 'Usuário excluído';
-  } catch (e) {
-    err.value = e?.response?.data?.error ?? e?.message ?? 'Erro ao excluir usuário';
-  } finally {
-    loadingDelete.value = false;
-  }
-}
 </script>
 
 <template>
@@ -58,16 +41,12 @@ async function deleteUser() {
 
     <div class="space-y-4">
       <div>
-        <label class="block text-sm font-medium text-gray-700">ID do usuário</label>
-        <input v-model="form.id" type="text" placeholder="ex: 1" class="mt-1 block w-full rounded border-gray-300 px-3 py-2" />
-      </div>
-      <div>
         <label class="block text-sm font-medium text-gray-700">Nome completo</label>
-        <input v-model="form.full_name" type="text" class="mt-1 block w-full rounded border-gray-300 px-3 py-2" />
+        <input v-model="form.full_name" type="text" class="mt-1 block w-full rounded border border-blue-800 px-3 py-2" />
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700">Email</label>
-        <input v-model="form.email" type="email" class="mt-1 block w-full rounded border-gray-300 px-3 py-2" />
+        <input v-model="form.email" type="email" class="mt-1 block w-full rounded border border-blue-800 px-3 py-2" />
       </div>
 
       <div class="flex gap-3">
@@ -77,13 +56,6 @@ async function deleteUser() {
           @click="updateUser"
         >
           {{ loadingUpdate ? 'Atualizando...' : 'Atualizar' }}
-        </button>
-        <button
-          class="rounded bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
-          :disabled="loadingDelete"
-          @click="deleteUser"
-        >
-          {{ loadingDelete ? 'Excluindo...' : 'Excluir' }}
         </button>
       </div>
 
