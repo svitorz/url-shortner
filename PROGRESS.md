@@ -96,6 +96,12 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-19 | `API_KEY` vazia agora impede o boot | Consequência direta do "falhar cedo se algo faltar"; fecha a forja de JWT da Fase 0. A validação de força da chave fica para a Fase 2 (H14) |
 | 2026-11-19 | Bug H10 mantido no refactor, com comentário no `main` | O refactor não pode mudar comportamento; corrigido com teste na Fase 2 |
 | 2026-11-19 | `REDIS_PASSWORD` continua opcional | Exigir é item da Fase 3 |
+| 2026-11-19 | **Código curto: aleatório base62, 7 chars, `crypto/rand`, retry em violação de unicidade (até 5)** | Não enumerável. 62^7 ≈ 3,5×10¹². Descartado: ID sequencial em base62 (sem retry, mas `/r/1`, `/r/2`… expõe todos os links) |
+| 2026-11-19 | **Mesma URL duas vezes: sempre cria novo** | Sem índice extra; cada link é independente; ninguém recebe link de outro por construção. Custo: duplicatas na lista |
+| 2026-11-19 | **Redirect 302, rota `GET /r/:slug` fora de `/api`, nginx `location /r/`, URL curta a partir de `PUBLIC_BASE_URL`** | 301 é cacheado para sempre (desativar não teria efeito). 307 só difere em métodos não-GET. `Host` é controlado pelo cliente e perde a porta atrás do nginx |
+| 2026-11-19 | **Rate limiter fail open + testes com miniredis** | Redis fora não derruba redirects; o limiter é proteção, não regra de negócio. miniredis: `FastForward` testa a janela sem sleep, roda no CI sem infra. Custo: menos fiel que Redis real |
+| 2026-11-19 | **Logout: remover a rota** | JWT é stateless; a rota fingia revogar. Front só descarta o token; TTL de 60 min limita a janela. Descartado: denylist no Redis (+1 GET por requisição autenticada, e com fail open o Redis fora reativaria tokens) |
+| 2026-11-19 | **Deletar usuário: `ON DELETE CASCADE` no banco** | Integridade garantida pelo Postgres. Como o AutoMigrate não altera FK existente, `LoadMigrations` ganha um ajuste idempotente da FK (primeira exceção ao AutoMigrate puro) |
 
 ## Contrato da API (mudanças)
 
