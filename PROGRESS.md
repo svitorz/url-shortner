@@ -4,7 +4,7 @@
 
 ## Fase atual
 
-**Fase 7 — documentação: concluída. Todas as fases (0–7) concluídas.**
+**Fase 7 — documentação: concluída. Todas as fases (0–7) concluídas.** Depois do plano: front de desenvolvimento no compose (branch `chore/web-dev-compose`, pedido do usuário).
 Branch: `docs/readme`, criado a partir de `main` local (merge `--no-ff` de `fix/web`, Fase 6). Nada enviado ao remoto nesta sessão; `origin/main` estava em `b04433a` (Fase 5), enviado fora da sessão.
 
 ## Checklist
@@ -64,6 +64,7 @@ Branch: `docs/readme`, criado a partir de `main` local (merge `--no-ff` de `fix/
 | 7 | `api/docs/API.md` + `app.http.example` atualizado + `WEB_PORT` removido (`2e8db24`) | ✅ constantes conferidas no código; exemplo `curl` executado contra o stack (302 + `Location`) |
 | 7 | README em PT (`4f59376`) | ✅ diagramas Mermaid renderizados com mermaid 11.4.1 (o 2º quebrava com `;` e foi corrigido) |
 | 7 | Verificação da definição de pronto em ambiente limpo | ✅ ver abaixo |
+| + | Front de desenvolvimento no compose: serviço `web-dev` no profile `dev` (pedido do usuário) | ✅ Vite 7.3.1 no container; `/` 200, `/api/ping` 200 pelo proxy do Vite; HMR verificado no navegador (título mudou sem recarregar); fumaça 42/0 (sem reinício) e infra-check 11/11 com ele no ar; lint+build pelo container |
 
 ## Como subir (estado atual)
 
@@ -219,6 +220,7 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | **Não reescrever o histórico** (decisão do usuário) | Os 4 JWTs vazados já expiraram e a chave atual é nova; reescrever exigiria `push --force`, quebraria clones e não apagaria cópias. Orientação: nunca reutilizar a `API_KEY` da época (jan/2026) |
 | 2026-11-20 | **Remover `AGILE.md`** (decisão do usuário) | Atividade acadêmica com nome completo e RA, sem relação com o funcionamento do projeto |
 | 2026-11-20 | `api/docs/API.md` documenta inconsistências reais (login 400, token 400) em vez de "consertar no texto" | A documentação descreve o código; corrigir é outra mudança |
+| 2026-11-20 | **Front de dev no compose** (`web-dev`, profile `dev`, `node:24-alpine`, bind mount de `web/` + volume `web_node_modules`, `npm ci` a cada subida) — pedido do usuário | Mesma versão de Node em qualquer máquina, nada instalado no host, HMR preservado. Profile em vez de arquivo de override: um arquivo só e `docker compose up` sem profile fica igual. `node_modules` em volume para não misturar binários do host com os do alpine. Porta por `WEB_DEV_PORT` (5173 ocupada nesta máquina) e só no loopback. Trade-off: `npm ci` a cada subida custa alguns segundos; o Docker cria `web/node_modules` vazio do root no host (ponto de montagem) |
 
 ## Contrato da API (mudanças)
 
@@ -396,6 +398,9 @@ O que **não** existe:
 - `web/README.md` ainda é o texto padrão do template do Vite (em inglês).
 - Login: corpo inválido → 400 (o resto da API usa 422); falha ao gerar token → 400 no login e no cadastro (deveria ser 500). Documentado em `api/docs/API.md`.
 - Histórico do git: 4 JWTs em `app.http` (commits `6697933`, `9b0c4ab`, `1408791`, `9cf4158`, jan/2026), expirados; `.env.example` antigos com `DB_PASSWORD=postgres` (padrão da imagem).
+
+- O primeiro teste de lint/build pelo container escreveu `web/dist` no host como root (bind mount). O comando documentado agora usa `--outDir /tmp/dist`; o `web/dist` antigo ficou (ignorado pelo git), aguardando o usuário apagar.
+- npm 11 avisa que o `postinstall` do esbuild não está em `allowScripts`; dev server, lint e build funcionam mesmo assim (o binário vem do pacote opcional da plataforma).
 
 ## Ideias futuras
 
