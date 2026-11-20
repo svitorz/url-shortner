@@ -10,7 +10,6 @@ import (
 	"svitorz/url-shortner/internal/repository"
 	"svitorz/url-shortner/internal/requests"
 	"svitorz/url-shortner/internal/requests/ratelimit"
-	"time"
 )
 
 func main() {
@@ -54,11 +53,7 @@ func run() error {
 		BaseURL:  cfg.PublicBaseURL,
 	}
 
-	// BUG conhecido (H10), mantido de propósito nesta fase para o refactor não
-	// mudar comportamento: a janela depende do minuto do relógio e é medida em
-	// nanossegundos. Corrigido na fase 2, com teste.
-	window := time.Duration(cfg.RateLimit.Minutes * time.Now().Minute())
-	rl := ratelimit.New(rdb, cfg.RateLimit.Limit, window)
+	rl := ratelimit.New(rdb, cfg.RateLimit.Limit, cfg.RateLimit.Window())
 
 	r := requests.SetupRouter(ctl, rl)
 	fmt.Println("setup router")

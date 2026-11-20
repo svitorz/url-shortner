@@ -60,8 +60,8 @@ func Load() (*Config, error) {
 			RedisProtocol: int64(r.int("REDIS_PROTOCOL")),
 		},
 		RateLimit: RateLimitConfig{
-			Limit:   r.int("REQUISITION_LIMIT"),
-			Minutes: r.int("MINUTES_OF_DURATION"),
+			Limit:   r.positive("REQUISITION_LIMIT"),
+			Minutes: r.positive("MINUTES_OF_DURATION"),
 		},
 	}
 
@@ -93,6 +93,15 @@ func (r *reader) baseURL(key string) string {
 		r.errs = append(r.errs, fmt.Errorf("  %s: deve ser uma URL http(s) absoluta (valor atual: %q)", key, v))
 	}
 	return v
+}
+
+func (r *reader) positive(key string) int {
+	v := os.Getenv(key)
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		r.errs = append(r.errs, fmt.Errorf("  %s: deve ser um inteiro > 0 (valor atual: %q)", key, v))
+	}
+	return n
 }
 
 func (r *reader) int(key string) int {
