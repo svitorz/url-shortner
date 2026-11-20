@@ -337,3 +337,21 @@ func TestUserConflictsAndValidation(t *testing.T) {
 		t.Errorf("corpo inválido do próprio usuário: %d, esperado 422", got)
 	}
 }
+
+// ---------- URL curta na lista e no detalhe ----------
+
+func TestListAndDetailIncludeShortURL(t *testing.T) {
+	e := newEnv(t, 1000)
+	tok, _ := e.register("url")
+	slug := e.createLink(tok, "https://example.com/lista")
+	want := baseURL + "/r/" + slug
+
+	links := e.req("GET", "/api/links", tok, nil).body["links"].([]any)
+	if len(links) != 1 || links[0].(map[string]any)["url"] != want {
+		t.Fatalf("lista: %v, esperado url=%s", links, want)
+	}
+	detail := e.req("GET", "/api/links/"+slug, tok, nil).body["link"].(map[string]any)
+	if detail["url"] != want || detail["slug"] != slug {
+		t.Fatalf("detalhe: %v, esperado url=%s", detail, want)
+	}
+}

@@ -6,9 +6,7 @@ import (
 	"svitorz/url-shortner/internal/requests/middleware"
 	"svitorz/url-shortner/internal/requests/ratelimit"
 	"svitorz/url-shortner/internal/requests/routes"
-	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,14 +18,9 @@ func SetupRouter(ctl *controllers.Controller, rl *ratelimit.RateLimiter, trusted
 		return nil, err
 	}
 
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost", "http://web:5173", "http://172.21.0.2:8080", "http://172.21.0.2:8080/#/"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "Accept"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
+	// Sem CORS de propósito: front e API são servidos pela mesma origem (nginx)
+	// e o Vite dev usa proxy. Nenhuma origem externa pode chamar a API pelo
+	// navegador do usuário. Um front em outro domínio exigiria reativar.
 
 	// /healthz fica fora do log de acesso: o healthcheck do compose bate a cada
 	// poucos segundos e afogaria as linhas úteis.

@@ -4,8 +4,8 @@
 
 ## Fase atual
 
-**Fase 5 — testes e CI: concluída.** Aguardando "continuar" para a Fase 6.
-Branch: `test/consolidate-ci` (o plano não nomeia branch para a Fase 5), criado a partir de `main` local (merge `--no-ff` de `feat/short-code-cache`, Fase 4). Nada enviado ao remoto nesta sessão; `origin/main` estava em `cf96090` (Fase 3), enviado fora da sessão.
+**Fase 6 — front: concluída.** Aguardando "continuar" para a Fase 7.
+Branch: `fix/web`, criado a partir de `main` @ `b04433a` (merge `--no-ff` de `test/consolidate-ci`, Fase 5). Nada enviado ao remoto nesta sessão; `origin/main` estava em `053505d` (Fase 4), enviado fora da sessão.
 
 ## Checklist
 
@@ -55,7 +55,11 @@ Branch: `test/consolidate-ci` (o plano não nomeia branch para a Fase 5), criado
 | 5 | `UpdateUser` checa posse antes do corpo (`11542c5`) — decisão do usuário | ✅ `TestLinkOwnership` (falha na versão anterior: 422 ≠ 403) |
 | 5 | Testes de ponta a ponta pelo router real (`297f369`, `87852c7`) | ✅ auth, posse, redirect, rate limit, login, conflitos |
 | 5 | CI GitHub Actions: gofmt, vet, test com Postgres 18, build do front (`ac25e22`) | ✅ YAML válido + comandos simulados localmente; ⚠️ **não rodou no GitHub** (nada enviado) |
-| 6–7 | ver plano | ⏳ |
+| 6 | API: `url` na lista e no detalhe (`9c92760`) | ✅ `TestListAndDetailIncludeShortURL` (falhava antes) |
+| 6 | API: CORS removido (`58b456b`) — decisão do usuário | ✅ `TestNoCORSForOtherOrigins` (falhava antes: `http://localhost` e `:5173` recebiam ACAO) |
+| 6 | Front: cliente único, 401, `requiresAuth`, web history, telas e estados (`7e938a8`) | ✅ ESLint 0 problemas + build + roteiro manual pelo nginx (abaixo) |
+| 6 | CI: ESLint no job do front (`45a4281`) | ✅ YAML válido |
+| 7 | ver plano | ⏳ |
 
 ## Como subir (estado atual)
 
@@ -181,6 +185,16 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | Teste de integração sem banco: pula localmente, **falha** com `CI` definida | Local continua rodando `go test ./...` sem Docker; no CI, pular esconderia a falta do banco |
 | 2026-11-20 | Testes de contrato em `internal/apitest` pelo `SetupRouter` | Testam o caminho real (middlewares de auth e rate limit, rotas), não handlers isolados |
 | 2026-11-20 | `Controller.NewCode` (gerador injetável) | Única forma simples de forçar colisão no índice único sem depender de sorte; nil = `shortcode.New` |
+| 2026-11-20 | **Apagar** `URLShortnerAPI.js`, `LogoutButton.vue`, `PingView`, `RedirectTesterView`, `WelcomeView` (decisão do usuário) | Quebrados (chamavam rotas removidas / `API()` como função) ou sem uso; recuperáveis pelo histórico. Home `/` leva a `/links` ou `/login` |
+| 2026-11-20 | **Remover CORS** (decisão do usuário) | Front e API na mesma origem (nginx; Vite dev com proxy): nenhuma chamada é cross-origin. Manter só deixava outras origens usarem a API pelo navegador do usuário. Descartado: origens por env (configuração sem uso) |
+| 2026-11-20 | **Web history** no router (decisão do usuário) | URLs limpas; o `try_files` do nginx já cobre. Descartado: hash (`/#/links`) |
+| 2026-11-20 | **API devolve `url`** na lista e no detalhe (decisão do usuário) | Fonte única (`PUBLIC_BASE_URL`), funciona com domínio curto diferente do front. Descartado: montar com `location.origin` |
+| 2026-11-20 | Handler de 401 registrado no `main.js` (`setUnauthorizedHandler`) | O cliente não importa o router: evita import circular (router → views → cliente → router). 401 do `/login` não dispara (é senha errada) |
+| 2026-11-20 | Cadastro já entra com o token devolvido | A API devolve token no `POST /user`; antes o front o ignorava e pedia login de novo |
+| 2026-11-20 | Desativar pede confirmação | Não existe rota de reativação: a ação é irreversível para o usuário |
+| 2026-11-20 | Redirect pós-login só para caminho interno (`/x`, não `//x`) | `?redirect=` vem da URL: sem isso, um link de login poderia mandar o usuário a outro site |
+| 2026-11-20 | Copiar: clipboard → `execCommand` → aviso "Copie manualmente" | O navegador embutido do teste nega o clipboard; antes o erro era engolido sem feedback |
+| 2026-11-20 | Tema claro explícito (`color-scheme: light`, `body` com fundo) | Com o navegador em modo escuro, o body transparente deixava texto preto sobre fundo escuro (visto no teste) |
 
 ## Contrato da API (mudanças)
 
@@ -201,6 +215,8 @@ Formato de erro: sempre `{"error": "<mensagem>"}`. Sucesso sem entidade: `{"mess
 | Autenticação | aceitava `?token=` e qualquer esquema no `Authorization`; token sem `exp` nunca expirava | só `Authorization: Bearer`; só HS256; `exp` e `user_id` obrigatórios |
 | Rate limit | janela quebrada (1 s renovável), chave `<ip>`, XFF de qualquer um | janela fixa `MINUTES_OF_DURATION` min, chave `ratelimit:<ip>`, XFF só de `TRUSTED_PROXIES`; fail open com log |
 
+Fase 6: `GET /api/links` e `GET /api/links/:slug` ganharam o campo `url` (aditivo). CORS removido: respostas não têm mais `Access-Control-Allow-*` para nenhuma origem.
+
 Fase 5: `PUT /api/user/:id` de outro usuário responde **403** mesmo com corpo inválido (antes validava o corpo primeiro e dava 422).
 
 Fase 3: nova rota interna `GET /healthz` → 200 `{"status":"ok","db":"ok"}` ou 503 (só dentro da rede do compose; pelo nginx, `/healthz` é página do front). O nginx agora casa `/api/` (antes `/api`, que também pegava `/apiqualquercoisa`). `REDIS_PASSWORD` passou a ser obrigatória.
@@ -215,6 +231,28 @@ Tamanho de imagem (não é desempenho): `docker image ls`, Docker 29.10.0, Compo
 |---|---|---|
 | API | 2,06 GB (`golang:1.24.4`, root) | 52,7 MB (alpine, binário 29,3 MB) |
 | Front | 492 MB (`node:20-alpine` + http-server) | 93 MB (`nginx:1.30-alpine` + dist, já incluindo o proxy) |
+
+### Teste manual ponta a ponta do front (Fase 6)
+
+Navegador embutido do app Claude (Chromium), pelo nginx em `http://localhost:8088` (porta 80 ocupada nesta máquina), stack do commit `7e938a8`. Roteiro e resultado:
+
+| Passo | Resultado |
+|---|---|
+| `/` sem sessão | redireciona para `/login` ✅ |
+| Cadastro | entra direto e cai em `/links` com estado vazio ✅ |
+| Criar link | mostra `http://localhost:8088/r/CFX0Qbr` completo + Copiar ✅ |
+| Copiar | navegador embutido nega o clipboard (`NotAllowedError`); botão mostra "Copie manualmente" ✅ (não testado num navegador comum) |
+| Lista | URL curta, destino, status "Ativo", data ✅ |
+| Detalhe (`/links/CFX0Qbr`, recarregando a página) | dados completos ✅ |
+| Desativar no detalhe | status vira "Desativado"; `curl /r/CFX0Qbr` → 410 ✅ (o `confirm` foi substituído por `() => true` só nesta aba para a automação) |
+| Detalhe de código inexistente | "Link não encontrado." ✅ |
+| Token inválido no `localStorage` + abrir `/links` | token limpo, vai para `/login?redirect=/links&expired=1` com aviso ✅ |
+| Login com senha errada | mostra o erro, não redireciona ✅ |
+| Login correto | volta para `/links` (o redirect guardado) ✅; botão Desativar bloqueado no link desativado ✅ |
+| Minha conta → salvar | "usuário atualizado" (id lido do token) ✅ |
+| Sair | vai para `/login`, token removido; `/links/new` depois disso → `/login?redirect=/links/new` ✅ |
+
+Não testado: navegador comum (Firefox/Chrome do usuário), tela de celular de verdade (só o layout responsivo no código), redirect 302 aberto pelo navegador (coberto pela fumaça via curl).
 
 ### Cobertura de testes (Fase 5)
 
@@ -325,6 +363,11 @@ O que **não** existe:
 - Com Redis fora, cache e rate limiter logam uma linha por requisição (pode inundar o log).
 - Arquivos de rodadas de diagnóstico não versionados em `loadtest/results/` (`smoke-1`, `diag-1`, `diag2-1`, `diag3-1`, `diag4-1`); podem ser apagados pelo usuário.
 
+- Durante a Fase 6, o checkout passou de novo para `main` sem comando do agente (reflog, 13:38:45, 37 s após o último commit no `fix/web`). 4 commits caíram na `main` local, foram reaplicados no `fix/web`; com o ok do usuário, a `main` local voltou a `b04433a` (`git branch -f`, igual ao `origin/main`). É a segunda vez: algo no ambiente (editor/terminal/ferramenta) troca o branch.
+- A mensagem de login errado continua em inglês (`Invalid email or password`), mantida na Fase 2 para não quebrar o front antigo; o front novo não depende do texto.
+- `AccountView` começa com os campos vazios (não há `GET /me`); o `PUT` exige nome e e-mail.
+- `gh` não está instalado nesta máquina: o resultado do CI no GitHub não foi verificado (o `origin/main` já está em `b04433a`, com o workflow).
+
 ## Ideias futuras
 
 - **Contagem de cliques:** `INCR clicks:<slug>` no Redis a cada redirect + flush assíncrono periódico para o Postgres (ex.: a cada N s, `GETDEL` e `UPDATE links SET clicks = clicks + n`). Trade-off: não pesa no redirect nem faz escrita no banco por requisição, mas perde os cliques ainda não descarregados se o Redis cair sem persistência, e a contagem no banco fica atrasada em até N s. A alternativa (escrever no banco a cada clique) é exata e simples, mas põe uma escrita no caminho mais quente.
@@ -332,5 +375,5 @@ O que **não** existe:
 
 ## Próximo passo
 
-Fase 6 (branch `fix/web`): cliente axios único com `baseURL` de `VITE_API_BASE` (padrão `/api`), remover/corrigir `URLShortnerAPI.js`, interceptor 401 (limpa token e vai ao login), `requiresAuth` em `/links`, CORS sem IPs fixos (avaliar se ainda é necessário com origem única), telas (criar com URL curta completa + copiar, lista com status e desativar, detalhe, estados de carregando/erro/vazio), teste manual ponta a ponta pelo nginx.
-Antes: decidir com o usuário de onde sai o branch da Fase 6 (`main` ainda não tem a Fase 5). O CI só roda de verdade quando algo for enviado ao GitHub.
+Fase 7 (branch `docs/readme`): README em PT com diagrama Mermaid, como rodar, tabela de rotas fiel ao código, decisões e trade-offs, limitações, resultados do teste de carga com método; `api/docs/API.md`; perguntar o destino do `AGILE.md` (nome completo e RA do aluno); revisar o histórico do git atrás de segredos commitados, sem reescrever sem confirmação.
+Antes: decidir com o usuário de onde sai o branch da Fase 7 (`main` ainda não tem a Fase 6).

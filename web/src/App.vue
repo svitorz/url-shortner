@@ -1,12 +1,10 @@
 <script setup>
-import Navigation from './components/Navigation.vue';
+import AppNavigation from './components/AppNavigation.vue'
 </script>
 
 <template>
-  <nav>
-    <Navigation />
-  </nav>
+  <AppNavigation />
   <main>
-      <RouterView />
+    <RouterView />
   </main>
 </template>
