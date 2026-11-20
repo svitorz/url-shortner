@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* O app só tem tema claro: sem isto, o body fica transparente e, com o
+   navegador em modo escuro, o texto preto aparece sobre fundo escuro. */
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-white text-gray-900 antialiased;
+}
