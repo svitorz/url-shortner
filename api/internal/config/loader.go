@@ -30,6 +30,7 @@ type Config struct {
 	Db             DbConfig
 	Redis          RedisConfig
 	RateLimit      RateLimitConfig
+	LinkCache      LinkCacheConfig
 }
 
 // Load lê o .env (se existir) e as variáveis de ambiente, e devolve um erro
@@ -68,6 +69,10 @@ func Load() (*Config, error) {
 			Limit:   r.positive("REQUISITION_LIMIT"),
 			Minutes: r.positive("MINUTES_OF_DURATION"),
 		},
+		LinkCache: LinkCacheConfig{
+			TTLSeconds:         r.positiveDefault("LINK_CACHE_TTL_SECONDS", defaultLinkCacheTTL),
+			NegativeTTLSeconds: r.positiveDefault("LINK_CACHE_NEGATIVE_TTL_SECONDS", defaultLinkCacheNegativeTTL),
+		},
 	}
 
 	if len(r.errs) > 0 {
@@ -83,6 +88,14 @@ const minAPIKeyBytes = 32
 // defaultDBMaxConns: folga para a concorrência típica sem chegar perto do
 // max_connections=100 padrão do Postgres.
 const defaultDBMaxConns = 20
+
+// TTL do cache do redirect. Positivo: 10 min (a desativação já sobrescreve a
+// entrada; o TTL só limita o pior caso de uma escrita que falhou no Redis).
+// Negativo: 30 s, curto porque um código inexistente pode passar a existir.
+const (
+	defaultLinkCacheTTL         = 600
+	defaultLinkCacheNegativeTTL = 30
+)
 
 // reader acumula erros para reportar todas as variáveis problemáticas de uma vez.
 type reader struct{ errs []error }

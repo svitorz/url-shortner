@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"errors"
+	"log"
 	"net/http"
+	"svitorz/url-shortner/internal/linkcache"
 	"svitorz/url-shortner/internal/models"
 	"svitorz/url-shortner/internal/shortcode"
 
@@ -56,6 +58,8 @@ func (h *Controller) CreateLink(c *gin.Context) {
 		return
 	}
 	slugified := link.Slug
+	// Sobrescreve um eventual cache negativo deste código.
+	h.cachePut(c, link.Slug, linkcache.Entry{Found: true, Active: true, Target: link.TargetURL})
 
 	// A URL curta vem da configuração, não do header Host: Host é controlado
 	// pelo cliente e, atrás do nginx, perde a porta.
@@ -153,6 +157,9 @@ func (h *Controller) DeactivateLink(c *gin.Context) {
 		internalError(c, "desativar link", err)
 		return
 	}
+	// Sobrescreve (não apaga): um redirect que leu o banco antes desta
+	// atualização não consegue repor o estado "ativo" (ver linkcache.Fill).
+	h.cachePut(c, link.Slug, linkcache.Entry{Found: true})
 
 	c.JSON(http.StatusOK, gin.H{"message": "link desativado"})
 }
@@ -166,24 +173,68 @@ func (h *Controller) LinkRedirect(c *gin.Context) {
 		return
 	}
 
-	var link models.Link
-	err := h.DB.WithContext(c.Request.Context()).Where("slug = ?", bind.Slug).First(&link).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "link não encontrado"})
-		return
-	}
+	e, err := h.lookupLink(c, bind.Slug)
 	if err != nil {
 		internalError(c, "buscar link para redirect", err)
 		return
 	}
+	if !e.Found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "link não encontrado"})
+		return
+	}
 
 	// 410 Gone: o link existiu e foi desativado pelo dono.
-	if !link.IsActive {
+	if !e.Active {
 		c.JSON(http.StatusGone, gin.H{"error": "link desativado"})
 		return
 	}
 
 	// 302 e não 301: 301 é cacheado pelo navegador sem prazo, então desativar
 	// o link não teria efeito para quem já visitou.
-	c.Redirect(http.StatusFound, link.TargetURL)
+	c.Redirect(http.StatusFound, e.Target)
+}
+
+// lookupLink: cache-aside. Acerto no cache responde sem ir ao banco; miss ou
+// Redis com erro vai ao banco e tenta preencher o cache. Só erro do banco
+// vira erro: o Redis fora do ar deixa o redirect mais lento, não quebrado.
+func (h *Controller) lookupLink(c *gin.Context, slug string) (linkcache.Entry, error) {
+	ctx := c.Request.Context()
+	if h.Cache != nil {
+		e, hit, err := h.Cache.Get(ctx, slug)
+		if err != nil {
+			log.Printf("cache de links indisponível, indo ao banco: %v", err)
+		} else if hit {
+			return e, nil
+		}
+	}
+
+	var link models.Link
+	err := h.DB.WithContext(ctx).Where("slug = ?", slug).First(&link).Error
+	var e linkcache.Entry
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		// Entry zero = não existe (cache negativo, TTL curto).
+	case err != nil:
+		return e, err
+	default:
+		e = linkcache.Entry{Found: true, Active: link.IsActive, Target: link.TargetURL}
+	}
+
+	if h.Cache != nil {
+		if err := h.Cache.Fill(ctx, slug, e); err != nil {
+			log.Printf("cache de links: falha ao preencher: %v", err)
+		}
+	}
+	return e, nil
+}
+
+// cachePut grava o estado novo após uma escrita no banco. Falha só é logada:
+// a escrita no banco já valeu, e o TTL limita quanto tempo o cache fica velho.
+func (h *Controller) cachePut(c *gin.Context, slug string, e linkcache.Entry) {
+	if h.Cache == nil {
+		return
+	}
+	if err := h.Cache.Put(c.Request.Context(), slug, e); err != nil {
+		log.Printf("cache de links: falha ao atualizar %s: %v", linkcache.Key(slug), err)
+	}
 }

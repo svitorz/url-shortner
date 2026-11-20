@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // setValidEnv define um ambiente completo e válido (t.Setenv restaura no fim).
@@ -73,5 +74,17 @@ func TestLoadDBMaxConns(t *testing.T) {
 	t.Setenv("DB_MAX_CONNS", "0")
 	if _, err = Load(); err == nil {
 		t.Fatal("aceitou DB_MAX_CONNS=0")
+	}
+}
+
+func TestLoadLinkCacheTTL(t *testing.T) {
+	setValidEnv(t)
+	cfg, err := Load()
+	if err != nil || cfg.LinkCache.TTL() != 10*time.Minute || cfg.LinkCache.NegativeTTL() != 30*time.Second {
+		t.Fatalf("padrões: %+v err=%v", cfg.LinkCache, err)
+	}
+	t.Setenv("LINK_CACHE_TTL_SECONDS", "-1")
+	if _, err := Load(); err == nil {
+		t.Fatal("aceitou LINK_CACHE_TTL_SECONDS negativo")
 	}
 }
