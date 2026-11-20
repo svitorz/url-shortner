@@ -4,7 +4,7 @@
 
 ## Fase atual
 
-**Fase 3 — infra (nginx, Dockerfiles, compose): não iniciada.** Aguardando "continuar".
+**Fase 3 — infra (nginx, Dockerfiles, compose): concluída.** Aguardando "continuar" para a Fase 4.
 Branch: `chore/infra-nginx`, criado a partir de `main` @ `9a7f8a1` (merge `--no-ff` de `fix/api-stabilize`, fases 0–2). Nada enviado ao remoto.
 
 ## Checklist
@@ -39,7 +39,12 @@ Branch: `chore/infra-nginx`, criado a partir de `main` @ `9a7f8a1` (merge `--no-
 | 2 | H14 `API_KEY` ≥ 32 bytes (`e10dc8b`) | ✅ teste |
 | 2 | H15 remover logout (`3cd6479`), `go mod tidy` (`5fe4388`) | ✅ fumaça, build/vet/test |
 | 2 | Teste do loop de retry do código curto (colisão forçada) | ⏳ Fase 5 (precisa de Postgres de teste no CI) |
-| 3–7 | ver plano | ⏳ |
+| 3 | Checagens escritas antes (`scripts/infra-check.sh` + seção front da fumaça) (`d53be0f`) | ✅ antes: 4 + 7 falhas |
+| 3 | `GET /healthz` com ping no Postgres (`a8eb739`) | ✅ `TestHealthDBDown`/`TestHealthDBUp`; db parado → api `unhealthy`, volta sozinha |
+| 3 | Dockerfile da API multi-stage, alpine, UID 10001, `GIN_MODE=release` (`6f2a861`) | ✅ infra-check `id -u`; 2,06 GB → 52,7 MB |
+| 3 | `REDIS_PASSWORD` obrigatória na API (`039811d`) | ✅ `TestLoadRejectsEmptyRedisPassword` (falha sem a correção) |
+| 3 | nginx único com o front (H16, H18), compose com healthchecks, senhas `:?`, imagens fixas, sem mount do `.env` (`92d5d11`) | ✅ fumaça 43/0 + infra-check 11/0, também após `down`/`up` |
+| 4–7 | ver plano | ⏳ |
 
 ## Como subir (estado atual)
 
@@ -47,13 +52,14 @@ Branch: `chore/infra-nginx`, criado a partir de `main` @ `9a7f8a1` (merge `--no-
 cp .env.example .env   # preencher DB_PASSWORD, REDIS_PASSWORD, API_KEY (openssl rand -hex 32), PUBLIC_BASE_URL
 docker compose up -d --build
 PROXY_PORT=80 scripts/smoke.sh   # use o mesmo PROXY_PORT do .env
+scripts/infra-check.sh           # portas, healthchecks, usuário não-root, senhas obrigatórias
 ```
 
 Testes Go (de `api/`): `go test ./...`. O teste de migração usa Postgres real e é pulado sem
 `TEST_DATABASE_DSN` (ex.: container descartável `postgres:18` em `127.0.0.1:55432`).
 
 Na máquina de desenvolvimento as portas 80 e 8080 estão ocupadas por outros projetos; o `.env` local usa `PROXY_PORT=8088`.
-O front em `/` ainda dá **502** (H16, Fase 3).
+O front é servido pelo próprio nginx do proxy em `/` (o serviço `web` não existe mais).
 
 ## Como a Fase 0 foi verificada
 
@@ -86,9 +92,10 @@ O front em `/` ainda dá **502** (H16, Fase 3).
 
 ## Script de fumaça — resultado atual
 
-`PROXY_PORT=8088 scripts/smoke.sh`, pelo nginx, stack do compose, 2026-11-20, fim da Fase 2:
-**39 passaram, 0 falharam** (o caminho de logout removido tem 1 verificação a menos que o de logout existente).
+`PROXY_PORT=8088 scripts/smoke.sh`, pelo nginx, stack do compose, 2026-11-20, fim da Fase 3 (após `docker compose down` + `up -d --build --wait`):
+**43 passaram, 0 falharam** (39 da Fase 2 + 4 do front). `scripts/infra-check.sh`: **11 passaram, 0 falharam**.
 `go vet ./...` limpo; `go test ./...` com 7 pacotes ok (com `TEST_DATABASE_DSN` definido).
+Antes das mudanças da Fase 3: fumaça 38/4 (front 502) e infra-check 5/7.
 
 ### Histórico: linha de base da Fase 1
 
@@ -139,6 +146,15 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | `API_KEY` mínima de 32 bytes | HS256 com chave curta é quebrável offline a partir de um token |
 | 2026-11-20 | Mensagens de erro novas em português | Projeto e front em PT; mensagens antigas do login (`Invalid email or password`) mantidas para não quebrar o front |
 | 2026-11-20 | **`fix/api-stabilize` mergeado na `main` (local, `--no-ff`) antes da Fase 3** (decisão do usuário) | Cada fase seguinte sai de uma `main` que já tem o trabalho anterior. `--no-ff` deixa o commit de merge marcando o fim das fases 0–2. Descartado: empilhar `chore/infra-nginx` sobre `fix/api-stabilize` (PRs dependentes em cadeia) |
+| 2026-11-20 | **nginx único** serve o build do front e faz proxy de `/api/` e `/r/` (decisão do usuário) | Some um container e um salto de rede. Trade-off: mudar o front exige rebuild do proxy. Descartado: nginx no `web` + nginx no proxy |
+| 2026-11-20 | Front entra no build do proxy por `additional_contexts` (contexto `web/`) | Contexto na raiz levaria o `.env` para o daemon de build. Exige Compose ≥ 2.17 / BuildKit |
+| 2026-11-20 | **API em alpine + UID 10001** (decisão do usuário) | wget do busybox faz o healthcheck sem código extra; shell ajuda a depurar. Descartado: distroless (menor superfície, mas precisaria de subcomando de healthcheck no binário) |
+| 2026-11-20 | `-tags timetzdata` no build | A DSN usa `America/Sao_Paulo` e o alpine não traz tzdata (a API não subia). Embute ~450 KB no binário. Descartado: instalar tzdata no alpine (acopla à imagem); tirar o fuso da DSN (fora de escopo) |
+| 2026-11-20 | **`/healthz` faz ping no Postgres, Redis fora** (decisão do usuário) | Banco fora = API inútil; Redis fora = API funciona (fail open). Fora de `/api`, sem log de acesso, não exposta pelo nginx (cai no `try_files` do front). Descartado: reusar `/api/ping` (não vê o banco) |
+| 2026-11-20 | Senhas obrigatórias via `${VAR:?msg}` no compose + `REDIS_PASSWORD` obrigatória na API | Falha clara antes de subir qualquer container. `API_KEY` não passa pela interpolação (só a API lê, via `env_file`): fica a cargo do `config.Load`. Descartado: injetar `API_KEY` no proxy só para validar (espalharia o segredo) |
+| 2026-11-20 | Upstream `api:${APP_PORT}` via `/etc/nginx/templates` da imagem oficial | Porta deixa de ser fixa no nginx (H18) sem script próprio; `$host` etc. ficam intactos porque não existem no ambiente |
+| 2026-11-20 | Imagens com versão fixa: `nginx:1.30-alpine`, `node:24-alpine`, `golang:1.24.4-alpine`, `alpine:3.22`, `redis:8-alpine`, `postgres:18` | `latest` muda sem aviso; Redis ≥ 7 é requisito (`EXPIRE NX`). Node 24 porque o 20 saiu de suporte |
+| 2026-11-20 | Cache: `/assets/*` 1 ano `immutable`; resto `no-cache` | Assets do Vite têm hash no nome; o `index.html` precisa sempre revalidar para pegar o build novo |
 
 ## Contrato da API (mudanças)
 
@@ -159,17 +175,41 @@ Formato de erro: sempre `{"error": "<mensagem>"}`. Sucesso sem entidade: `{"mess
 | Autenticação | aceitava `?token=` e qualquer esquema no `Authorization`; token sem `exp` nunca expirava | só `Authorization: Bearer`; só HS256; `exp` e `user_id` obrigatórios |
 | Rate limit | janela quebrada (1 s renovável), chave `<ip>`, XFF de qualquer um | janela fixa `MINUTES_OF_DURATION` min, chave `ratelimit:<ip>`, XFF só de `TRUSTED_PROXIES`; fail open com log |
 
+Fase 3: nova rota interna `GET /healthz` → 200 `{"status":"ok","db":"ok"}` ou 503 (só dentro da rede do compose; pelo nginx, `/healthz` é página do front). O nginx agora casa `/api/` (antes `/api`, que também pegava `/apiqualquercoisa`). `REDIS_PASSWORD` passou a ser obrigatória.
+
 Novas variáveis: `PUBLIC_BASE_URL` (obrigatória), `TRUSTED_PROXIES` (opcional). `API_KEY` ≥ 32 bytes; `REQUISITION_LIMIT` e `MINUTES_OF_DURATION` > 0.
 
 ## Medições
 
-Nenhuma ainda.
+Tamanho de imagem (não é desempenho): `docker image ls`, Docker 29.10.0, Compose v5.8.0, Debian 13 (kernel 6.12), tamanho local descompactado, 2026-11-20.
+
+| Imagem | Antes | Depois |
+|---|---|---|
+| API | 2,06 GB (`golang:1.24.4`, root) | 52,7 MB (alpine, binário 29,3 MB) |
+| Front | 492 MB (`node:20-alpine` + http-server) | 93 MB (`nginx:1.30-alpine` + dist, já incluindo o proxy) |
+
+Desempenho: nenhuma medição ainda (Fase 4).
+
+## Segurança da infra (estado na Fase 3)
+
+O que existe:
+- Postgres e Redis sem porta no host; API publicada só em `127.0.0.1` (para depurar). Entrada pública única: nginx em `PROXY_PORT`.
+- Redis exige senha (`requirepass`); sem ela o compose não sobe e a API não inicia.
+- API roda como usuário não-root (UID 10001), binário estático, `GIN_MODE=release`.
+- nginx: `server_tokens off`, timeouts de proxy (5 s conexão, 15 s leitura/escrita), sobrescreve `X-Forwarded-For`.
+- `.env` não entra em nenhum contexto de build (`.dockerignore` em `api/` e `web/`; o proxy não usa a raiz).
+- Dados do Postgres em volume nomeado (`pgdata`), sobrevivem a `down`/`up` (sem `-v`).
+
+O que **não** existe:
+- **Sem TLS**: localmente tudo é HTTP, então token JWT e senha trafegam em claro. Numa VPS: colocar o certificado no nginx (ex.: certbot com o plugin nginx, ou um Caddy na frente fazendo ACME), redirecionar 80 → 443 e mudar `PUBLIC_BASE_URL` para `https://`.
+- Sem cabeçalhos de segurança no front (CSP, HSTS, `X-Frame-Options`); HSTS só faz sentido com TLS.
+- Sem limite de tamanho de corpo próprio (vale o padrão do nginx, 1 MB) e sem rate limit no nginx (só o da API).
+- Rede do compose é uma só: qualquer container nela alcança Postgres e Redis (mitigado pelas senhas).
+- Segredos ficam em `.env` em texto puro (sem Docker secrets/vault).
 
 ## Achados fora de escopo
 
 - `TOKEN_LIFE_SPAN` é interpretado em **minutos** (`auth/token.go`); o exemplo foi corrigido para 60, mas o nome da variável não diz a unidade.
-- O healthcheck do db ainda usa `$${DB_USER}`/`$${DB_NAME}` (vazias no container; passa por acaso). Fase 3.
-- `.env` é montado em `/app/.env` além do `env_file` (redundante). Fase 3.
 - Tokens não verificam se o usuário ainda existe: após `DELETE /api/user/:id`, o token segue válido até expirar (rotas respondem vazio/404, sem dano, mas é estranho).
 - Links `javascript:`/`ftp:` criados antes do H4 continuam no banco (só no ambiente local). Sem migração de limpeza.
 - O rate limit é global: conta também `/api/ping` e o redirect `/r/`. Na Fase 4 o teste de carga precisa de `REQUISITION_LIMIT` alto (anotar).
@@ -177,12 +217,13 @@ Nenhuma ainda.
 - `LogoutButton.vue` ainda chama `POST /api/logout` (agora 404); o logout funciona porque o token é limpo no `finally`, mas aparece um erro rápido. Fase 6.
 - Front ainda usa `/api/r/` em `MyLinksView` e `RedirectTesterView` (rota removida). Fase 6.
 - `HASH_COST=14` torna cadastro/login lentos (~1 s por hash); relevante para testes de carga em rotas autenticadas.
-- Gin em modo debug (sem `GIN_MODE=release`).
 - `LinkDetailsView` lê `res.data.target_url`, mas a API responde `{link:{...}}`; e como a API responde 302, o axios rejeita a resposta → a tela de detalhe sempre mostra erro.
 - `AccountView` exige que o usuário digite o próprio ID (não há `GET /me`).
 - `RegisterView` ignora o token devolvido no cadastro; `LoginView` grava o token direto no `localStorage` sem passar por `useAuth().login` (menu não atualiza).
-- `VITE_API_BASE` passado como `environment` em runtime no compose não tem efeito: variáveis Vite são de build.
-- Sem `.dockerignore` em `api/` e `web/`.
+- `VITE_API_BASE` agora chega ao build (arg do proxy), mas `web/src/services/API.js` ainda tem `baseURL: 'http://localhost:8000/api'` fixo: pelo nginx, o front chama a API direto na 8000 (funciona só na própria máquina, via CORS). Fase 6.
+- `GET /healthz` pelo nginx cai no `index.html` do front (200): não é a API. Inofensivo, mas pode confundir.
+- A imagem antiga `url-shortner-web` (492 MB) continua no Docker local, sem uso; fica a critério do usuário apagá-la.
+- Durante a Fase 3, o checkout local passou de `chore/infra-nginx` para `main` sem comando do agente (reflog, 11:27:31). 4 commits caíram na `main` local e foram reaplicados no branch certo; a `main` local ainda os contém (aguardando decisão do usuário para voltá-la a `9a7f8a1`).
 - DSN fixa `TimeZone=America/Sao_Paulo` (`config/database.go:21`).
 
 ## Ideias futuras
@@ -191,5 +232,5 @@ Nenhuma ainda.
 
 ## Próximo passo
 
-Fase 3 (branch `chore/infra-nginx`): Dockerfile multi-stage da API (não-root), front servido por nginx com `try_files` e gzip (resolve o 502 do H16), proxy com `/api` e `/r/`, healthchecks (db com `POSTGRES_*`, api com endpoint de health), exigir `REDIS_PASSWORD`, documentar segurança/TLS.
-Branch já criado a partir da `main` com as fases 0–2.
+Fase 4 (branch `feat/short-code-cache`): primeiro o teste de carga (escolher k6 vs hey/wrk) no redirect de um slug existente, com `REQUISITION_LIMIT` alto, e a linha de base; depois o cache-aside `link:<slug>` com TTL por env, invalidação ao desativar e cache negativo curto; rodar de novo e comparar.
+Antes: decidir com o usuário o que fazer com a `main` local (4 commits duplicados) e de onde sai o branch da Fase 4.
