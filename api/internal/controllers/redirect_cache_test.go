@@ -4,19 +4,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"svitorz/url-shortner/internal/auth"
 	"svitorz/url-shortner/internal/linkcache"
 	"svitorz/url-shortner/internal/models"
+	"svitorz/url-shortner/internal/testdb"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 const (
@@ -32,17 +30,10 @@ type redirectEnv struct {
 	r   *gin.Engine
 }
 
-// newRedirectEnv: Postgres real (TEST_DATABASE_DSN) + Redis em miniredis.
+// newRedirectEnv: Postgres real (banco próprio, ver testdb) + Redis em miniredis.
 func newRedirectEnv(t *testing.T) *redirectEnv {
 	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_DSN não definida")
-	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Discard})
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := testdb.Open(t)
 	if err := models.LoadMigrations(db); err != nil {
 		t.Fatal(err)
 	}
