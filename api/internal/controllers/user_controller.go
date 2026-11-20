@@ -55,14 +55,13 @@ func (h *Controller) CreateUser(c *gin.Context) {
 		internalError(c, "criar usuário", result.Error)
 		return
 	}
-	log.Printf("User created: %v", user)
+	log.Printf("usuário criado (id=%d)", user.ID)
 
 	token, err := h.Tokens.GenerateToken(user.ID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error generating token"})
 		return
 	}
-	log.Printf("Token generated: %s", token)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created successfully",

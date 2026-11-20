@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"svitorz/url-shortner/internal/auth"
@@ -34,7 +33,6 @@ func (h *Controller) Login(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		fmt.Println("Erro no bind:", err.Error(), c.Request)
 		return
 	}
 	var user models.User
@@ -52,19 +50,18 @@ func (h *Controller) Login(c *gin.Context) {
 	}
 
 	if valid := auth.VerifyPassword(user.Password, input.Password); !valid {
-		log.Println("Invalid password attempt for user:", user.Email)
+		log.Printf("login falhou: senha incorreta (user_id=%d)", user.ID)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
-	log.Printf("User logged in: %v", user.Email)
+	log.Printf("login ok (user_id=%d)", user.ID)
 
 	token, err := h.Tokens.GenerateToken(user.ID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error generating token"})
 		return
 	}
-	log.Printf("Token generated: %s", token)
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 

@@ -1,6 +1,7 @@
 package requests
 
 import (
+	"fmt"
 	"svitorz/url-shortner/internal/controllers"
 	"svitorz/url-shortner/internal/requests/middleware"
 	"svitorz/url-shortner/internal/requests/ratelimit"
@@ -28,7 +29,7 @@ func SetupRouter(ctl *controllers.Controller, rl *ratelimit.RateLimiter, trusted
 		MaxAge:           12 * time.Hour,
 	}))
 
-	r.Use(gin.Logger(), gin.Recovery(), middleware.RateLimiterMiddleware(rl))
+	r.Use(gin.LoggerWithFormatter(logLine), gin.Recovery(), middleware.RateLimiterMiddleware(rl))
 
 	// Rota pública da URL curta, fora de /api (o nginx encaminha /r/ para a API).
 	r.GET("/r/:slug", ctl.LinkRedirect)
@@ -39,4 +40,12 @@ func SetupRouter(ctl *controllers.Controller, rl *ratelimit.RateLimiter, trusted
 	routes.Config(api, authMw, ctl)
 
 	return r, nil
+}
+
+// logLine é o formato do gin.Logger, mas com o path SEM a query string:
+// assim nada que um cliente mande em ?... (ex.: um token) vai para o log.
+func logLine(p gin.LogFormatterParams) string {
+	return fmt.Sprintf("[GIN] %s | %3d | %13v | %15s | %-7s %s\n",
+		p.TimeStamp.Format("2006/01/02 - 15:04:05"), p.StatusCode, p.Latency,
+		p.ClientIP, p.Method, p.Request.URL.Path)
 }

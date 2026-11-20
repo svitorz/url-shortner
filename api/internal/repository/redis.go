@@ -12,7 +12,6 @@ import (
 // ConnectRedis cria o cliente e faz um Ping para falhar cedo se estiver inválido.
 func ConnectRedis(cfg config.RedisConfig) (*redis.Client, error) {
 	addr := fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort)
-	fmt.Println("Debug redis ADDR:", addr)
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     addr,
