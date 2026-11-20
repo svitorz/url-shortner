@@ -363,7 +363,7 @@ O que **não** existe:
 - Com Redis fora, cache e rate limiter logam uma linha por requisição (pode inundar o log).
 - Arquivos de rodadas de diagnóstico não versionados em `loadtest/results/` (`smoke-1`, `diag-1`, `diag2-1`, `diag3-1`, `diag4-1`); podem ser apagados pelo usuário.
 
-- Durante a Fase 6, o checkout passou de novo para `main` sem comando do agente (reflog, 13:38:45, 37 s após o último commit no `fix/web`). 4 commits caíram na `main` local, foram reaplicados no `fix/web`; a `main` local ainda os contém (aguardando decisão do usuário para voltá-la a `b04433a`). É a segunda vez: algo no ambiente (editor/terminal/ferramenta) troca o branch.
+- Durante a Fase 6, o checkout passou de novo para `main` sem comando do agente (reflog, 13:38:45, 37 s após o último commit no `fix/web`). 4 commits caíram na `main` local, foram reaplicados no `fix/web`; com o ok do usuário, a `main` local voltou a `b04433a` (`git branch -f`, igual ao `origin/main`). É a segunda vez: algo no ambiente (editor/terminal/ferramenta) troca o branch.
 - A mensagem de login errado continua em inglês (`Invalid email or password`), mantida na Fase 2 para não quebrar o front antigo; o front novo não depende do texto.
 - `AccountView` começa com os campos vazios (não há `GET /me`); o `PUT` exige nome e e-mail.
 - `gh` não está instalado nesta máquina: o resultado do CI no GitHub não foi verificado (o `origin/main` já está em `b04433a`, com o workflow).
@@ -376,4 +376,4 @@ O que **não** existe:
 ## Próximo passo
 
 Fase 7 (branch `docs/readme`): README em PT com diagrama Mermaid, como rodar, tabela de rotas fiel ao código, decisões e trade-offs, limitações, resultados do teste de carga com método; `api/docs/API.md`; perguntar o destino do `AGILE.md` (nome completo e RA do aluno); revisar o histórico do git atrás de segredos commitados, sem reescrever sem confirmação.
-Antes: decidir com o usuário (1) voltar a `main` local a `b04433a` e (2) de onde sai o branch da Fase 7.
+Antes: decidir com o usuário de onde sai o branch da Fase 7 (`main` ainda não tem a Fase 6).
