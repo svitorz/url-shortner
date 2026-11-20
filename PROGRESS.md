@@ -4,8 +4,8 @@
 
 ## Fase atual
 
-**Fase 0 — orientação (somente leitura): concluída.** Aguardando "continuar" para a Fase 1.
-Branch: `fix/api-stabilize` (criado a partir de `main` @ `f15ea2a`).
+**Fase 1 — rede de segurança: concluída.** Aguardando "continuar" para a Fase 2.
+Branch: `fix/api-stabilize` (criado a partir de `main` @ `f15ea2a`). A Fase 2 continua neste mesmo branch.
 
 ## Checklist
 
@@ -14,12 +14,26 @@ Branch: `fix/api-stabilize` (criado a partir de `main` @ `f15ea2a`).
 | 0 | Ler api/, web/, proxy/, compose, docs | ✅ |
 | 0 | Verificar H1–H22 (estático + execução contra Postgres/Redis descartáveis) | ✅ |
 | 0 | Branch `fix/api-stabilize` + `PROGRESS.md` | ✅ |
-| 1 | Corrigir H1 (migrations) — decisão AutoMigrate vs migrations SQL | ⏳ aguardando decisão |
-| 1 | Volume persistente do Postgres | ⏳ |
-| 1 | `.env.example` coerente + `docker compose up -d --build` funcionando | ⏳ |
-| 1 | Script de fumaça cobrindo todas as rotas | ⏳ |
-| 1 | Tirar config/DB/Redis dos `init()` e montar no `main` | ⏳ |
-| 2–7 | ver plano | ⏳ |
+| 1 | Corrigir H1 com `AutoMigrate` (`9fa93a3`) | ✅ provado |
+| 1 | Volume persistente do Postgres (`394530c`) | ✅ provado |
+| 1 | Rede: web/proxy na rede da API (N1, `a8d7dc1`) | ✅ |
+| 1 | Postgres/Redis sem porta no host, `PROXY_PORT`, healthcheck do Redis (`c7b0553`) | ✅ |
+| 1 | `.env.example` sem comentários inline (N2), `TOKEN_LIFE_SPAN=60` (`7166991`) | ✅ |
+| 1 | Script de fumaça `scripts/smoke.sh` (`d539500`) | ✅ |
+| 1 | Config/DB/Redis montados no `main`, sem `init()` (`f9d3a97`) | ✅ fumaça idêntica |
+| 2 | H2–H9, H10–H12, H14–H15, N3, N4 | ⏳ |
+| 3–7 | ver plano | ⏳ |
+
+## Como subir (estado atual)
+
+```bash
+cp .env.example .env   # preencher DB_PASSWORD, REDIS_PASSWORD, API_KEY (openssl rand -hex 32)
+docker compose up -d --build
+PROXY_PORT=80 scripts/smoke.sh   # use o mesmo PROXY_PORT do .env
+```
+
+Na máquina de desenvolvimento as portas 80 e 8080 estão ocupadas por outros projetos; o `.env` local usa `PROXY_PORT=8088`.
+O front em `/` ainda dá **502** (H16, Fase 3).
 
 ## Como a Fase 0 foi verificada
 
@@ -50,6 +64,17 @@ Branch: `fix/api-stabilize` (criado a partir de `main` @ `f15ea2a`).
 | DELETE /api/user/:id com links | **500** expondo struct do erro do Postgres |
 | Reinício da API | **todos os dados apagados** (2 usuários → 0) |
 
+## Script de fumaça — resultado atual
+
+`PROXY_PORT=8088 scripts/smoke.sh`, pelo nginx, stack do compose, 2026-11-19.
+**17 passaram, 23 falharam.** Igual antes e depois do refactor (diff normalizado vazio).
+
+Passam: ping, cadastros, login, senha errada 401, sem token/token inválido 401, criar link, B cria com mesma URL (201), listar, URL vazia, URL gigante (*por acidente*: 400 com erro cru do `varchar(64)`), desativar como dono, atualizar outro usuário 403, logout 200, **persistência após reinício (H1)**.
+
+Falham (todas esperadas, item → fase 2): H9 duplicado 400≠409; N4 senha longa 500; N3 e-mail inexistente 400; H14 `?token=` 200; H3 URL curta (e sem porta: nginx repassa `Host $host`); H2 B recebe slug de A, lista de B vazia; H4 `javascript:`/`ftp:` 201; H6 detalhe 302/401/401; H5 redirect 301 / inexistente 422 / inativo 422; desativar alheio/inexistente 401; H9 update duplicado 500 e sucesso 202; H15 token válido após logout; H8 delete 500 e login do "deletado" 200.
+
+Persistência do volume: container `db` recriado com `--force-recreate`, `users` 4 → 4.
+
 ## Problemas verificados (resumo; detalhes no relatório da Fase 0)
 
 Críticos: H1 (DROP em todo boot), segredo JWT forjável (`API_KEY` vazio aceito; com o `.env.example` via compose o segredo vira o texto do comentário), H2 (link de outro dono), H8 (delete 500), proxy fora da rede da API.
@@ -60,6 +85,17 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | Data | Decisão | Porquê |
 |---|---|---|
 | 2026-11-19 | Não subir o stack do projeto na Fase 0 | H1 apagaria dados de um banco existente; verificação feita em containers descartáveis |
+| 2026-11-19 | **Migrations: `AutoMigrate`** (decisão do usuário) | Simples, nunca apaga, zero dependência nova. Descartado: goose/golang-migrate (histórico e rollback, mas +1 dependência e schema duplicado struct/SQL). Trade-off aceito: AutoMigrate não remove/renomeia colunas; mudança destrutiva de schema exige SQL manual. Migrar para goose depois é barato |
+| 2026-11-19 | Falha de migration encerra o processo | Seguir com schema em estado desconhecido gera erros difíceis de diagnosticar |
+| 2026-11-19 | Postgres/Redis sem porta publicada no host (antecipado da Fase 3) | Necessário para subir nesta máquina (6379 ocupada) e não há motivo para expor. Para acesso local: `ports: ["127.0.0.1:5432:5432"]` |
+| 2026-11-19 | `PROXY_PORT` com padrão 80 | Porta 80 ocupada nesta máquina; mantém o padrão para quem não tem conflito |
+| 2026-11-19 | Healthcheck do Redis + `depends_on: service_healthy` (antecipado da Fase 3) | A API passou a falhar cedo se o Redis não responder; sem isso a ordem de boot seria uma corrida. `REDISCLI_AUTH` evita senha na linha de comando do healthcheck |
+| 2026-11-19 | `TOKEN_LIFE_SPAN=60` no exemplo | O valor é lido em minutos; 3600 dava tokens de 60 h |
+| 2026-11-19 | Script de fumaça em bash+curl+jq afirmando o contrato ALVO | Cada falha atual vira a prova de um conserto da Fase 2. Onde a decisão ainda está aberta, aceita um conjunto (`302\|307`, `403\|404`). Descartado: atualizar `app.http.example` (manual, não dá pass/fail) |
+| 2026-11-19 | **Injeção explícita de dependências** em vez de globais | `config.Load` valida tudo e lista o que falta; `main.run` conecta e monta `Controller{DB,Tokens,HashCost}` e `RateLimiter`. Alternativa descartada: manter `repository.DB`/`RDB` globais, só inicializados pelo `main` (diff menor, mas testes paralelos compartilhariam estado global e a dependência continuaria implícita). Sem interfaces: os testes da Fase 2/5 vão usar Postgres/Redis reais |
+| 2026-11-19 | `API_KEY` vazia agora impede o boot | Consequência direta do "falhar cedo se algo faltar"; fecha a forja de JWT da Fase 0. A validação de força da chave fica para a Fase 2 (H14) |
+| 2026-11-19 | Bug H10 mantido no refactor, com comentário no `main` | O refactor não pode mudar comportamento; corrigido com teste na Fase 2 |
+| 2026-11-19 | `REDIS_PASSWORD` continua opcional | Exigir é item da Fase 3 |
 
 ## Contrato da API (mudanças)
 
@@ -71,7 +107,10 @@ Nenhuma ainda.
 
 ## Achados fora de escopo
 
-- `TOKEN_LIFE_SPAN` é interpretado em **minutos** (`auth/token.go:28`); o `.env.example` usa 3600 → token de 60 horas.
+- `TOKEN_LIFE_SPAN` é interpretado em **minutos** (`auth/token.go`); o exemplo foi corrigido para 60, mas o nome da variável não diz a unidade.
+- nginx repassa `Host $host` (sem porta): a URL curta sai sem a porta quando `PROXY_PORT != 80`. Tratar junto com H3 (`$http_host`) ou com uma `PUBLIC_BASE_URL` (Fase 2).
+- O healthcheck do db ainda usa `$${DB_USER}`/`$${DB_NAME}` (vazias no container; passa por acaso). Fase 3.
+- `.env` é montado em `/app/.env` além do `env_file` (redundante). Fase 3.
 - Tokens não verificam se o usuário ainda existe.
 - `HASH_COST=14` torna cadastro/login lentos (~1 s por hash); relevante para testes de carga em rotas autenticadas.
 - Gin em modo debug (sem `GIN_MODE=release`).
@@ -88,4 +127,4 @@ Nenhuma ainda.
 
 ## Próximo passo
 
-Fase 1: decidir com o usuário AutoMigrate vs migrations SQL versionadas; corrigir H1 primeiro.
+Fase 2 (mesmo branch `fix/api-stabilize`), na ordem H2–H9, H10–H12, H14–H15. Antes de codar, decidir com o usuário: (a) código curto base62 sequencial vs aleatório; (b) mesma URL duas vezes: sempre novo vs reaproveitar por (usuário, URL); (c) 302 vs 307 e rota pública `/r/` (nginx → API vs mover a rota para fora de `/api`); (d) rate limiter fail open vs closed e miniredis vs Redis do compose nos testes; (e) Logout: denylist no Redis vs remover a rota; (f) o que fazer com os links ao deletar usuário (H8: CASCADE vs bloquear).
