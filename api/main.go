@@ -55,7 +55,10 @@ func run() error {
 
 	rl := ratelimit.New(rdb, cfg.RateLimit.Limit, cfg.RateLimit.Window())
 
-	r := requests.SetupRouter(ctl, rl)
+	r, err := requests.SetupRouter(ctl, rl, cfg.TrustedProxies)
+	if err != nil {
+		return fmt.Errorf("configurar router: %w", err)
+	}
 	fmt.Println("setup router")
 
 	return r.Run(fmt.Sprintf(":%d", cfg.AppPort))

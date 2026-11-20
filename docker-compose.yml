@@ -13,7 +13,9 @@ services:
     volumes:
       - ./.env:/app/.env:ro
     ports:
-      - "${APP_PORT}:${APP_PORT}"
+      # Só no loopback: com TRUSTED_PROXIES em faixas privadas, expor a API na
+      # rede deixaria clientes da LAN forjarem X-Forwarded-For.
+      - "127.0.0.1:${APP_PORT}:${APP_PORT}"
     networks:
       - url-shortner-network
   redis:

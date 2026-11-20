@@ -11,8 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(ctl *controllers.Controller, rl *ratelimit.RateLimiter) *gin.Engine {
+// SetupRouter monta o engine. trustedProxies são os IPs/CIDRs dos quais o
+// X-Forwarded-For é aceito para descobrir o IP do cliente (vazio: nenhum).
+func SetupRouter(ctl *controllers.Controller, rl *ratelimit.RateLimiter, trustedProxies []string) (*gin.Engine, error) {
 	r := gin.New()
+	if err := r.SetTrustedProxies(trustedProxies); err != nil {
+		return nil, err
+	}
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:5173", "http://localhost", "http://web:5173", "http://172.21.0.2:8080", "http://172.21.0.2:8080/#/"},
@@ -33,5 +38,5 @@ func SetupRouter(ctl *controllers.Controller, rl *ratelimit.RateLimiter) *gin.En
 	api := r.Group("/api")
 	routes.Config(api, authMw, ctl)
 
-	return r
+	return r, nil
 }

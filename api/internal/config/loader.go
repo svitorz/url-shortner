@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
@@ -23,10 +24,12 @@ type Config struct {
 	// PublicBaseURL é a origem pública das URLs curtas (ex.: https://sho.rt), sem / no fim.
 	PublicBaseURL string
 	HashCost      int
-	Api           ApiConfig
-	Db            DbConfig
-	Redis         RedisConfig
-	RateLimit     RateLimitConfig
+	// TrustedProxies: IPs/CIDRs dos quais o X-Forwarded-For é aceito.
+	TrustedProxies []string
+	Api            ApiConfig
+	Db             DbConfig
+	Redis          RedisConfig
+	RateLimit      RateLimitConfig
 }
 
 // Load lê o .env (se existir) e as variáveis de ambiente, e devolve um erro
@@ -38,9 +41,10 @@ func Load() (*Config, error) {
 
 	r := &reader{}
 	cfg := &Config{
-		AppPort:       r.int("APP_PORT"),
-		PublicBaseURL: r.baseURL("PUBLIC_BASE_URL"),
-		HashCost:      r.int("HASH_COST"),
+		AppPort:        r.int("APP_PORT"),
+		PublicBaseURL:  r.baseURL("PUBLIC_BASE_URL"),
+		HashCost:       r.int("HASH_COST"),
+		TrustedProxies: r.ipList("TRUSTED_PROXIES"),
 		Api: ApiConfig{
 			ApiKey:        r.str("API_KEY"),
 			TokenLifeSpan: int64(r.int("TOKEN_LIFE_SPAN")),
@@ -93,6 +97,22 @@ func (r *reader) baseURL(key string) string {
 		r.errs = append(r.errs, fmt.Errorf("  %s: deve ser uma URL http(s) absoluta (valor atual: %q)", key, v))
 	}
 	return v
+}
+
+// ipList lê uma lista opcional separada por vírgula de IPs ou CIDRs.
+func (r *reader) ipList(key string) []string {
+	var out []string
+	for _, s := range strings.Split(os.Getenv(key), ",") {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(s); err != nil && net.ParseIP(s) == nil {
+			r.errs = append(r.errs, fmt.Errorf("  %s: %q não é IP nem CIDR", key, s))
+		}
+		out = append(out, s)
+	}
+	return out
 }
 
 func (r *reader) positive(key string) int {
