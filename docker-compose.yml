@@ -31,6 +31,9 @@ services:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=${DB_NAME}
+    volumes:
+      # postgres:18 usa /var/lib/postgresql (PGDATA=/var/lib/postgresql/18/docker)
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${DB_USER} -d $${DB_NAME}"]
       interval: 10s
@@ -69,3 +72,5 @@ services:
 networks:
   url-shortner-network:
     driver: bridge
+volumes:
+  pgdata:
