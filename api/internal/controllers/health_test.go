@@ -3,7 +3,7 @@ package controllers
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"svitorz/url-shortner/internal/testdb"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -37,11 +37,7 @@ func TestHealthDBDown(t *testing.T) {
 }
 
 func TestHealthDBUp(t *testing.T) {
-	dsn := os.Getenv("TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_DSN não definida")
-	}
-	if got := healthStatus(t, dsn); got != http.StatusOK {
+	if got := healthStatus(t, testdb.DSN(t)); got != http.StatusOK {
 		t.Fatalf("banco no ar: status %d, esperado 200", got)
 	}
 }

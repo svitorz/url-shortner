@@ -1,30 +1,16 @@
 package models
 
 import (
-	"os"
+	"svitorz/url-shortner/internal/testdb"
 	"testing"
 
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
-// testDB conecta no Postgres de TEST_DATABASE_DSN (banco descartável) e
-// recria o schema do zero. Sem a variável, o teste é pulado.
+// testDB: banco vazio e exclusivo deste teste (ver testdb).
 func testDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	dsn := os.Getenv("TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_DSN não definida")
-	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Discard})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Exec("DROP TABLE IF EXISTS links, users CASCADE").Error; err != nil {
-		t.Fatal(err)
-	}
-	return db
+	return testdb.Open(t)
 }
 
 func fkDeleteRule(t *testing.T, db *gorm.DB) string {

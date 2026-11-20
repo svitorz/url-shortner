@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"os"
+	"svitorz/url-shortner/internal/testdb"
 	"sync"
 	"testing"
 
@@ -14,11 +14,7 @@ import (
 // fechada "por excesso de ociosas" (MaxIdleClosed): isso é a rotatividade que
 // derrubava a vazão no teste de carga.
 func TestPoolKeepsConnectionsUnderConcurrency(t *testing.T) {
-	dsn := os.Getenv("TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TEST_DATABASE_DSN não definida")
-	}
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	db, err := gorm.Open(postgres.Open(testdb.DSN(t)), &gorm.Config{Logger: logger.Discard})
 	if err != nil {
 		t.Fatal(err)
 	}

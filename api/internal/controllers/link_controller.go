@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"svitorz/url-shortner/internal/linkcache"
 	"svitorz/url-shortner/internal/models"
-	"svitorz/url-shortner/internal/shortcode"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -41,7 +40,7 @@ func (h *Controller) CreateLink(c *gin.Context) {
 	// (índice único em slug), gera outro e tenta de novo.
 	var link models.Link
 	for attempt := 1; ; attempt++ {
-		code, err := shortcode.New()
+		code, err := h.newCode()
 		if err != nil {
 			internalError(c, "gerar código curto", err)
 			return
