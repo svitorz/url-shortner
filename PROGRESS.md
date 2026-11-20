@@ -4,7 +4,7 @@
 
 ## Fase atual
 
-**Fase 7 — documentação: concluída. Todas as fases (0–7) concluídas.** Depois do plano: front de desenvolvimento no compose (branch `chore/web-dev-compose`, pedido do usuário).
+**Fase 7 — documentação: concluída. Todas as fases (0–7) concluídas.** Depois do plano: front de desenvolvimento no compose (`chore/web-dev-compose`); contagem de cliques (`feat/click-count`) e front mais completo (`feat/web-ui`), a pedido do usuário.
 Branch: `docs/readme`, criado a partir de `main` local (merge `--no-ff` de `fix/web`, Fase 6). Nada enviado ao remoto nesta sessão; `origin/main` estava em `b04433a` (Fase 5), enviado fora da sessão.
 
 ## Checklist
@@ -64,6 +64,8 @@ Branch: `docs/readme`, criado a partir de `main` local (merge `--no-ff` de `fix/
 | 7 | `api/docs/API.md` + `app.http.example` atualizado + `WEB_PORT` removido (`2e8db24`) | ✅ constantes conferidas no código; exemplo `curl` executado contra o stack (302 + `Location`) |
 | 7 | README em PT (`4f59376`) | ✅ diagramas Mermaid renderizados com mermaid 11.4.1 (o 2º quebrava com `;` e foi corrigido) |
 | 7 | Verificação da definição de pronto em ambiente limpo | ✅ ver abaixo |
+| + | Contagem de cliques: `INCR` no 302 + flush periódico com `GETDEL` + flush final no desligamento gracioso (pedido do usuário) | ✅ 6 testes em `clicks` (inclui flushes concorrentes sem dupla contagem e restauração se o banco falhar; prova reversa: `Update` no lugar de `UpdateColumn` muda `updated_at` e falha) + `TestOnlySuccessfulRedirectsCountClicks`; no stack: 0 → 5 após flush, restart grava os 2 pendentes na hora; fumaça 43/0 |
+| + | Teste de carga com cliques | ✅ 3 rodadas válidas; custo não mensurável (faixa sobreposta à do cache) |
 | + | Front de desenvolvimento no compose: serviço `web-dev` no profile `dev` (pedido do usuário) | ✅ Vite 7.3.1 no container; `/` 200, `/api/ping` 200 pelo proxy do Vite; HMR verificado no navegador (título mudou sem recarregar); fumaça 42/0 (sem reinício) e infra-check 11/11 com ele no ar; lint+build pelo container |
 
 ## Como subir (estado atual)
@@ -221,6 +223,9 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | **Remover `AGILE.md`** (decisão do usuário) | Atividade acadêmica com nome completo e RA, sem relação com o funcionamento do projeto |
 | 2026-11-20 | `api/docs/API.md` documenta inconsistências reais (login 400, token 400) em vez de "consertar no texto" | A documentação descreve o código; corrigir é outra mudança |
 | 2026-11-20 | **Front de dev no compose** (`web-dev`, profile `dev`, `node:24-alpine`, bind mount de `web/` + volume `web_node_modules`, `npm ci` a cada subida) — pedido do usuário | Mesma versão de Node em qualquer máquina, nada instalado no host, HMR preservado. Profile em vez de arquivo de override: um arquivo só e `docker compose up` sem profile fica igual. `node_modules` em volume para não misturar binários do host com os do alpine. Porta por `WEB_DEV_PORT` (5173 ocupada nesta máquina) e só no loopback. Trade-off: `npm ci` a cada subida custa alguns segundos; o Docker cria `web/node_modules` vazio do root no host (ponto de montagem) |
+| 2026-11-20 | **Contar cliques agora, com Redis + flush** (pedido do usuário) | Sem escrita no Postgres por clique (o redirect é o caminho mais quente). `GETDEL` torna o flush seguro com várias instâncias; falha no `UPDATE` devolve o valor com `INCRBY`; `UpdateColumn` para não mexer em `last_change`. Trade-offs aceitos: número até `CLICK_FLUSH_SECONDS` atrasado; clique perdido se o Redis estiver fora; pendentes perdidos se o Redis reiniciar sem persistência. Descartado: `UPDATE` por clique (exato, mas uma escrita no banco por redirect) |
+| 2026-11-20 | Desligamento gracioso (`http.Server.Shutdown` + `signal.NotifyContext`) | Necessário para o flush final dos cliques; de quebra, `docker stop` não corta requisições em andamento. Timeout de 8 s, abaixo dos 10 s do `docker stop` |
+| 2026-11-20 | Só redirect 302 conta clique | 404 e 410 não são acessos ao destino |
 
 ## Contrato da API (mudanças)
 
@@ -279,6 +284,18 @@ Navegador embutido do app Claude (Chromium), pelo nginx em `http://localhost:808
 | Sair | vai para `/login`, token removido; `/links/new` depois disso → `/login?redirect=/links/new` ✅ |
 
 Não testado: navegador comum (Firefox/Chrome do usuário), tela de celular de verdade (só o layout responsivo no código), redirect 302 aberto pelo navegador (coberto pela fumaça via curl).
+
+### Teste de carga com contagem de cliques
+
+**Como:** mesmo cenário, máquina e runner, `PROXY_PORT=8088 RUN_LABEL=clicks loadtest/run.sh`, código do branch `feat/click-count` (antes do commit), `CLICK_FLUSH_SECONDS=10`.
+
+| Rodada | Requisições | RPS | p50 (ms) | p95 (ms) | p99 (ms) | máx (ms) | Erros | Checks ok |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 997022 | 16617,0333 | 2,643534 | 5,434054 | 7,439112 | 34,129301 | 0 | 100% |
+| 2 | 896715 | 14945,2500 | 2,850583 | 6,363259 | 9,388115 | 50,261790 | 0 | 100% |
+| 3 | 705881 | 11764,6833 | 3,408199 | 9,317331 | 14,438060 | 68,085790 | 0 | 100% |
+
+**Leitura:** a faixa (11764,6833–16617,0333 RPS) se sobrepõe à do cache sem cliques (13858,4500–15132,9833) e a variação entre rodadas é maior que qualquer diferença entre cenários: **custo do `INCR` não mensurável nesta máquina**. Cliques no banco após o teste: 3.031.313 para 2.599.618 requisições medidas (a diferença são os 3 aquecimentos de 10 s, não contados à parte); 0 contadores pendentes e 0 logs de clique não contado. Não prova igualdade exata (o runner não registra as requisições do aquecimento).
 
 ### Cobertura de testes (Fase 5)
 
@@ -404,7 +421,7 @@ O que **não** existe:
 
 ## Ideias futuras
 
-- **Contagem de cliques:** `INCR clicks:<slug>` no Redis a cada redirect + flush assíncrono periódico para o Postgres (ex.: a cada N s, `GETDEL` e `UPDATE links SET clicks = clicks + n`). Trade-off: não pesa no redirect nem faz escrita no banco por requisição, mas perde os cliques ainda não descarregados se o Redis cair sem persistência, e a contagem no banco fica atrasada em até N s. A alternativa (escrever no banco a cada clique) é exata e simples, mas põe uma escrita no caminho mais quente.
+- ~~Contagem de cliques~~ (feita em `feat/click-count`). Próximo passo possível: histórico por dia (`clicks:<slug>:<data>`) para gráfico.
 - Teste de carga com muitos slugs (distribuição tipo Zipf) para medir taxa de acerto realista, e com o gerador de carga em outra máquina.
 
 ## Próximo passo

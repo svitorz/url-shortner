@@ -5,12 +5,14 @@ package apitest
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"svitorz/url-shortner/internal/auth"
+	"svitorz/url-shortner/internal/clicks"
 	"svitorz/url-shortner/internal/controllers"
 	"svitorz/url-shortner/internal/linkcache"
 	"svitorz/url-shortner/internal/models"
@@ -56,6 +58,7 @@ func newEnv(t *testing.T, limit int) *env {
 		HashCost: 4, // mínimo do bcrypt: testes rápidos
 		BaseURL:  baseURL,
 		Cache:    linkcache.New(rdb, 10*time.Minute, 30*time.Second),
+		Clicks:   clicks.New(rdb, db),
 	}
 	gin.SetMode(gin.TestMode)
 	r, err := requests.SetupRouter(ctl, ratelimit.New(rdb, limit, time.Minute), nil)
@@ -353,5 +356,40 @@ func TestListAndDetailIncludeShortURL(t *testing.T) {
 	detail := e.req("GET", "/api/links/"+slug, tok, nil).body["link"].(map[string]any)
 	if detail["url"] != want || detail["slug"] != slug {
 		t.Fatalf("detalhe: %v, esperado url=%s", detail, want)
+	}
+}
+
+// ---------- cliques ----------
+
+func TestOnlySuccessfulRedirectsCountClicks(t *testing.T) {
+	e := newEnv(t, 1000)
+	tok, _ := e.register("clicks")
+	slug := e.createLink(tok, "https://example.com/cliques")
+
+	for i := 0; i < 3; i++ {
+		if got := e.req("GET", "/r/"+slug, "", nil).code; got != http.StatusFound {
+			t.Fatalf("redirect %d: %d", i, got)
+		}
+	}
+	e.req("GET", "/r/naoexiste", "", nil) // 404 não conta
+	if _, err := e.ctl.Clicks.FlushOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	clicksOf := func() float64 {
+		return e.req("GET", "/api/links/"+slug, tok, nil).body["link"].(map[string]any)["clicks"].(float64)
+	}
+	if got := clicksOf(); got != 3 {
+		t.Fatalf("clicks = %v, esperado 3", got)
+	}
+
+	e.req("POST", "/api/links/"+slug+"/deactivate", tok, nil)
+	e.req("GET", "/r/"+slug, "", nil) // 410 não conta
+	_, _ = e.ctl.Clicks.FlushOnce(context.Background())
+	if got := clicksOf(); got != 3 {
+		t.Fatalf("410 contou clique: clicks = %v", got)
+	}
+	links := e.req("GET", "/api/links", tok, nil).body["links"].([]any)
+	if links[0].(map[string]any)["clicks"] != float64(3) {
+		t.Fatalf("lista sem clicks=3: %v", links)
 	}
 }

@@ -44,7 +44,11 @@ sequenceDiagram
         A->>P: SELECT ... WHERE slug = ?
         A->>R: SET NX link:aZ3k9Qp (TTL 600 s, ou 30 s se não existe)
     end
+    opt só no 302
+        A->>R: INCR clicks:aZ3k9Qp (timeout 100 ms)
+    end
     A-->>C: 302 Location / 404 / 410
+    Note over A,P: a cada 10 s, GETDEL clicks:* e UPDATE links SET clicks = clicks + n
 ```
 
 - **Portas:** só o nginx fica exposto. Postgres e Redis não publicam porta no host, e a API é publicada apenas em `127.0.0.1`, para depuração.
@@ -131,6 +135,7 @@ docker compose --profile dev run --rm --no-deps web-dev sh -c "npm ci && npx esl
 | `TRUSTED_PROXIES` | não | faixas privadas | IPs/CIDRs dos quais o `X-Forwarded-For` é aceito |
 | `REQUISITION_LIMIT`, `MINUTES_OF_DURATION` | sim | 1000, 1 | rate limit por IP (requisições por janela de N minutos) |
 | `LINK_CACHE_TTL_SECONDS`, `LINK_CACHE_NEGATIVE_TTL_SECONDS` | não | 600, 30 | TTL do cache do redirect |
+| `CLICK_FLUSH_SECONDS` | não | 10 | intervalo do flush dos cliques do Redis para o banco (atraso máximo do número exibido) |
 | `HASH_COST` | sim | 14 | custo do bcrypt (cerca de 1 s por hash nesta máquina) |
 | `API_KEY` | **sim** | vazio | segredo HS256 dos JWT (mínimo 32 bytes) |
 | `TOKEN_LIFE_SPAN` | sim | 60 | validade do token, **em minutos** |
@@ -166,6 +171,7 @@ O registro completo, com o porquê e as alternativas descartadas, está em [`PRO
 - **`/r/:slug` fora de `/api`:** a URL curta fica curta. Ela é montada a partir de `PUBLIC_BASE_URL` e não do header `Host`, que é controlado pelo cliente.
 - **Rate limit em janela fixa no Redis:** `INCR` + `EXPIRE NX` numa transação, com chave por IP. Se o Redis cair, a requisição passa (fail open). O IP real só é lido do `X-Forwarded-For` quando a conexão vem de um proxy confiável, e o nginx sobrescreve esse header em vez de anexar.
 - **Cache do redirect (cache-aside):** a leitura preenche com `SET NX`, e as escritas sobrescrevem com o estado novo em vez de apagar a chave. Assim, um leitor atrasado não repõe "ativo" depois de uma desativação. Há cache negativo com TTL curto. Se o Redis ficar lento, a consulta desiste em 100 ms e vai ao banco.
+- **Contagem de cliques sem escrita no banco por clique:** cada redirect 302 faz um `INCR` no Redis, e um flush a cada 10 s soma os contadores no Postgres (`GETDEL` atômico, com o valor devolvido ao Redis se o banco falhar, e um flush final no desligamento). Em troca, o número exibido fica até 10 s atrasado, e um clique com o Redis fora não é contado.
 - **Pool do Postgres configurado:** o padrão do `database/sql` (2 conexões ociosas) abria cerca de 374 conexões por segundo sob carga. O ganho veio daí, não do cache (ver resultados).
 - **JWT só no header Bearer, só HS256, `exp` obrigatório:** token na query string vai parar em logs e no Referer. A `API_KEY` precisa ter pelo menos 32 bytes.
 - **Login sem enumeração:** a mesma resposta e o mesmo tempo para senha errada e e-mail inexistente (bcrypt contra um hash fictício).
@@ -193,6 +199,8 @@ Faixa entre as 3 rodadas (sem média):
 | p95 (ms) | 157,975374–211,394075 | 9,067184–9,282503 | 6,531091–7,410544 |
 | p99 (ms) | 207,758357–305,585441 | 13,093775–13,431955 | 9,417925–11,139275 |
 | Erros | 0 | 0 | 0 |
+
+Com a contagem de cliques ligada (um `INCR` a mais por redirect, commit `feat/click-count`), as 3 rodadas deram 11764,6833–16617,0333 req/s e p99 de 7,439112–14,438060 ms, sem erros. A faixa se sobrepõe à da coluna "Pool + cache" e a variação entre as rodadas foi maior do que qualquer diferença entre os cenários. Por isso **não é possível afirmar um custo nesta máquina**. No fim, o banco tinha 3.031.313 cliques para 2.599.618 requisições medidas (a diferença são os aquecimentos, que não foram contados à parte), e nenhum contador ficou pendente.
 
 **Leitura:**
 - **Pool:** o maior ganho veio de configurar o pool. Antes, o Postgres ficava em 402% de CPU só abrindo conexões.
@@ -229,7 +237,7 @@ Os JSONs de cada rodada estão em `loadtest/results/`, e o método completo e o 
 
 ## Limitações conhecidas
 
-- **Contagem de cliques:** não existe; a ideia, com os trade-offs, está em `PROGRESS.md` ("Ideias futuras").
+- **Cliques:** o número exibido fica até 10 s atrasado. Se o Redis cair sem persistência, os cliques ainda não gravados se perdem. Não há histórico por dia, só o total.
 - **Token de usuário excluído:** continua aceito até expirar.
 - **Dados do usuário logado:** não há `GET /me`, então a tela "Minha conta" começa vazia.
 - **Inconsistências do login:** responde 400 (não 422) para corpo inválido, e a falha ao gerar o token responde 400 em vez de 500.
