@@ -31,11 +31,5 @@ func userRoutes(ctl *controllers.Controller) []Route {
 			HandlerFunc: ctl.Login,
 			useAuth:     false,
 		},
-		{
-			Path:        "/logout",
-			Method:      http.MethodPost,
-			HandlerFunc: ctl.Logout,
-			useAuth:     true,
-		},
 	}
 }

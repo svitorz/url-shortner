@@ -64,5 +64,3 @@ func (h *Controller) Login(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
-
-func (h *Controller) Logout(c *gin.Context) {}
