@@ -55,6 +55,7 @@ func Load() (*Config, error) {
 			DbPort:     int64(r.int("DB_PORT")),
 			DbUser:     r.str("DB_USER"),
 			DbPassword: r.str("DB_PASSWORD"),
+			MaxConns:   r.positiveDefault("DB_MAX_CONNS", defaultDBMaxConns),
 		},
 		Redis: RedisConfig{
 			RedisHost:     r.str("REDIS_HOST"),
@@ -78,6 +79,10 @@ func Load() (*Config, error) {
 // minAPIKeyBytes: HS256 usa HMAC-SHA256; uma chave curta pode ser quebrada
 // por força bruta offline a partir de qualquer token emitido.
 const minAPIKeyBytes = 32
+
+// defaultDBMaxConns: folga para a concorrência típica sem chegar perto do
+// max_connections=100 padrão do Postgres.
+const defaultDBMaxConns = 20
 
 // reader acumula erros para reportar todas as variáveis problemáticas de uma vez.
 type reader struct{ errs []error }
@@ -135,6 +140,14 @@ func (r *reader) positive(key string) int {
 		r.errs = append(r.errs, fmt.Errorf("  %s: deve ser um inteiro > 0 (valor atual: %q)", key, v))
 	}
 	return n
+}
+
+// positiveDefault é como positive, mas a variável é opcional (vazia = def).
+func (r *reader) positiveDefault(key string, def int) int {
+	if os.Getenv(key) == "" {
+		return def
+	}
+	return r.positive(key)
 }
 
 func (r *reader) int(key string) int {

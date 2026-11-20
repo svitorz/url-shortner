@@ -58,3 +58,20 @@ func TestLoadRejectsEmptyRedisPassword(t *testing.T) {
 		t.Fatalf("Load aceitou REDIS_PASSWORD vazia (err=%v)", err)
 	}
 }
+
+func TestLoadDBMaxConns(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("DB_MAX_CONNS", "")
+	cfg, err := Load()
+	if err != nil || cfg.Db.MaxConns != defaultDBMaxConns {
+		t.Fatalf("padrão: MaxConns=%v err=%v", cfg, err)
+	}
+	t.Setenv("DB_MAX_CONNS", "7")
+	if cfg, err = Load(); err != nil || cfg.Db.MaxConns != 7 {
+		t.Fatalf("valor 7: err=%v", err)
+	}
+	t.Setenv("DB_MAX_CONNS", "0")
+	if _, err = Load(); err == nil {
+		t.Fatal("aceitou DB_MAX_CONNS=0")
+	}
+}
