@@ -99,7 +99,7 @@ func (h *Controller) GetLinkDetails(c *gin.Context) {
 	var link models.Link
 
 	var bind struct {
-		Slug string `uri:"slug" binding:"required`
+		Slug string `uri:"slug" binding:"required"`
 	}
 
 	if err := c.ShouldBindUri(&bind); err != nil {
@@ -135,7 +135,7 @@ func (h *Controller) DeactivateLink(c *gin.Context) {
 	var link models.Link
 
 	var bind struct {
-		Slug string `uri:"slug" binding:"required`
+		Slug string `uri:"slug" binding:"required"`
 	}
 
 	if err := c.ShouldBindUri(&bind); err != nil {
@@ -168,7 +168,7 @@ func (h *Controller) LinkRedirect(c *gin.Context) {
 	var link models.Link
 
 	var bind struct {
-		Slug string `uri:"slug" binding:"required`
+		Slug string `uri:"slug" binding:"required"`
 	}
 
 	if err := c.ShouldBindUri(&bind); err != nil {
