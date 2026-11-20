@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const maxPasswordBytes = 72
+
 func (h *Controller) CreateUser(c *gin.Context) {
 	var input struct {
 		Name     string `json:"full_name" binding:"required"`
@@ -22,9 +24,16 @@ func (h *Controller) CreateUser(c *gin.Context) {
 		return
 	}
 
+	// bcrypt só aceita até 72 bytes (não runas): acima disso o hash falhava e
+	// virava 500. O validator "max" conta caracteres, por isso a checagem aqui.
+	if len(input.Password) > maxPasswordBytes {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "senha deve ter no máximo 72 bytes"})
+		return
+	}
+
 	encryptedPassword, err := auth.HashPassword(input.Password, h.HashCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error encrypting password"})
+		internalError(c, "gerar hash da senha", err)
 		return
 	}
 
