@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -17,12 +19,14 @@ type ApiConfig struct {
 
 // Config reúne toda a configuração lida do ambiente.
 type Config struct {
-	AppPort   int
-	HashCost  int
-	Api       ApiConfig
-	Db        DbConfig
-	Redis     RedisConfig
-	RateLimit RateLimitConfig
+	AppPort int
+	// PublicBaseURL é a origem pública das URLs curtas (ex.: https://sho.rt), sem / no fim.
+	PublicBaseURL string
+	HashCost      int
+	Api           ApiConfig
+	Db            DbConfig
+	Redis         RedisConfig
+	RateLimit     RateLimitConfig
 }
 
 // Load lê o .env (se existir) e as variáveis de ambiente, e devolve um erro
@@ -34,8 +38,9 @@ func Load() (*Config, error) {
 
 	r := &reader{}
 	cfg := &Config{
-		AppPort:  r.int("APP_PORT"),
-		HashCost: r.int("HASH_COST"),
+		AppPort:       r.int("APP_PORT"),
+		PublicBaseURL: r.baseURL("PUBLIC_BASE_URL"),
+		HashCost:      r.int("HASH_COST"),
 		Api: ApiConfig{
 			ApiKey:        r.str("API_KEY"),
 			TokenLifeSpan: int64(r.int("TOKEN_LIFE_SPAN")),
@@ -73,6 +78,19 @@ func (r *reader) str(key string) string {
 	v := os.Getenv(key)
 	if v == "" {
 		r.errs = append(r.errs, fmt.Errorf("  %s: obrigatória e está vazia", key))
+	}
+	return v
+}
+
+// baseURL exige uma URL absoluta http(s) e remove a barra final.
+func (r *reader) baseURL(key string) string {
+	v := strings.TrimRight(r.str(key), "/")
+	if v == "" {
+		return ""
+	}
+	u, err := url.Parse(v)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		r.errs = append(r.errs, fmt.Errorf("  %s: deve ser uma URL http(s) absoluta (valor atual: %q)", key, v))
 	}
 	return v
 }

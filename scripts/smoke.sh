@@ -135,9 +135,9 @@ check "[H6] detalhe por outro usuário -> 403/404" "403|404" "$code"
 req GET "$API/links/nao-existe-$RUN" -H "$(auth "$TA")"
 check "[H6] detalhe de slug inexistente -> 404" "404" "$code"
 
-req GET "$API/r/$SLUG_A"
+req GET "$BASE_URL/r/$SLUG_A"
 check "[H5] redirect de slug ativo -> 302/307" "302|307" "$code"
-req GET "$API/r/nao-existe-$RUN"
+req GET "$BASE_URL/r/nao-existe-$RUN"
 check "[H5] redirect de slug inexistente -> 404" "404" "$code"
 
 req POST "$API/links/$SLUG_A/deactivate" -H "$(auth "$TB")"
@@ -146,7 +146,7 @@ req POST "$API/links/nao-existe-$RUN/deactivate" -H "$(auth "$TA")"
 check "desativar slug inexistente -> 404" "404" "$code"
 req POST "$API/links/$SLUG_A/deactivate" -H "$(auth "$TA")"
 check "dono desativa link -> 200" "200" "$code"
-req GET "$API/r/$SLUG_A"
+req GET "$BASE_URL/r/$SLUG_A"
 check "[H5] redirect de link inativo -> 404/410" "404|410" "$code"
 
 # ---------- atualizar usuário ----------

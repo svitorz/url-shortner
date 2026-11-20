@@ -51,6 +51,7 @@ func run() error {
 		DB:       db,
 		Tokens:   auth.NewTokens(cfg.Api.ApiKey, cfg.Api.TokenLifeSpan),
 		HashCost: cfg.HashCost,
+		BaseURL:  cfg.PublicBaseURL,
 	}
 
 	// BUG conhecido (H10), mantido de propósito nesta fase para o refactor não

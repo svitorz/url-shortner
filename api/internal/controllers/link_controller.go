@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"svitorz/url-shortner/internal/models"
 	"svitorz/url-shortner/internal/shortcode"
@@ -56,12 +55,9 @@ func (h *Controller) CreateLink(c *gin.Context) {
 	}
 	slugified := link.Slug
 
-	scheme := "http"
-	if c.Request.TLS != nil {
-		scheme = "https"
-	}
-	base := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
-	redirectURL := fmt.Sprintf("%s/r/%s", base, slugified)
+	// A URL curta vem da configuração, não do header Host: Host é controlado
+	// pelo cliente e, atrás do nginx, perde a porta.
+	redirectURL := h.BaseURL + "/r/" + slugified
 
 	c.JSON(http.StatusCreated, gin.H{
 		"id":    link.ID,

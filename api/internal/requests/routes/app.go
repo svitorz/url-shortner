@@ -42,11 +42,5 @@ func appRoutes(ctl *controllers.Controller) []Route {
 			HandlerFunc: ctl.DeactivateLink,
 			useAuth:     true,
 		},
-		{
-			Path:        "/r/:slug",
-			Method:      http.MethodGet,
-			HandlerFunc: ctl.LinkRedirect,
-			useAuth:     false,
-		},
 	}
 }

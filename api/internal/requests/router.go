@@ -25,6 +25,9 @@ func SetupRouter(ctl *controllers.Controller, rl *ratelimit.RateLimiter) *gin.En
 
 	r.Use(gin.Logger(), gin.Recovery(), middleware.RateLimiterMiddleware(rl))
 
+	// Rota pública da URL curta, fora de /api (o nginx encaminha /r/ para a API).
+	r.GET("/r/:slug", ctl.LinkRedirect)
+
 	authMw := middleware.AuthRequired(ctl.Tokens)
 
 	api := r.Group("/api")
