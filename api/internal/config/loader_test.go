@@ -12,7 +12,7 @@ func setValidEnv(t *testing.T) {
 		"APP_PORT": "8000", "PUBLIC_BASE_URL": "http://localhost", "HASH_COST": "4",
 		"API_KEY": "0123456789abcdef0123456789abcdef", "TOKEN_LIFE_SPAN": "60",
 		"DB_NAME": "db", "DB_HOST": "localhost", "DB_PORT": "5432", "DB_USER": "u", "DB_PASSWORD": "p",
-		"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_PASSWORD": "", "REDIS_DB": "0", "REDIS_PROTOCOL": "2",
+		"REDIS_HOST": "localhost", "REDIS_PORT": "6379", "REDIS_PASSWORD": "senha-redis", "REDIS_DB": "0", "REDIS_PROTOCOL": "2",
 		"REQUISITION_LIMIT": "100", "MINUTES_OF_DURATION": "1",
 	} {
 		t.Setenv(k, v)
@@ -47,5 +47,14 @@ func TestLoadRejectsEmptyAPIKey(t *testing.T) {
 	t.Setenv("API_KEY", "")
 	if _, err := Load(); err == nil {
 		t.Fatal("Load aceitou API_KEY vazia")
+	}
+}
+
+func TestLoadRejectsEmptyRedisPassword(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("REDIS_PASSWORD", "")
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "REDIS_PASSWORD") {
+		t.Fatalf("Load aceitou REDIS_PASSWORD vazia (err=%v)", err)
 	}
 }
