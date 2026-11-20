@@ -138,7 +138,15 @@ func (h *Controller) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Os links do usuário são apagados pela FK ON DELETE CASCADE.
+	// Slugs lidos antes: a FK ON DELETE CASCADE apaga os links junto com o
+	// usuário, e o cache do redirect precisa saber quais deixaram de existir.
+	var slugs []string
+	if err := h.DB.WithContext(c.Request.Context()).Model(&models.Link{}).
+		Where("owner_id = ?", id).Pluck("slug", &slugs).Error; err != nil {
+		internalError(c, "listar links do usuário", err)
+		return
+	}
+
 	res := h.DB.WithContext(c.Request.Context()).Delete(&models.User{}, id)
 	if res.Error != nil {
 		internalError(c, "excluir usuário", res.Error)
@@ -147,6 +155,12 @@ func (h *Controller) DeleteUser(c *gin.Context) {
 	if res.RowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
+	}
+
+	if h.Cache != nil {
+		if err := h.Cache.PutNotFound(c.Request.Context(), slugs); err != nil {
+			log.Printf("cache de links: falha ao invalidar %d links do usuário excluído: %v", len(slugs), err)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "usuário excluído"})

@@ -6,6 +6,7 @@ import (
 	"svitorz/url-shortner/internal/auth"
 	"svitorz/url-shortner/internal/config"
 	"svitorz/url-shortner/internal/controllers"
+	"svitorz/url-shortner/internal/linkcache"
 	"svitorz/url-shortner/internal/models"
 	"svitorz/url-shortner/internal/repository"
 	"svitorz/url-shortner/internal/requests"
@@ -51,6 +52,7 @@ func run() error {
 		Tokens:   auth.NewTokens(cfg.Api.ApiKey, cfg.Api.TokenLifeSpan),
 		HashCost: cfg.HashCost,
 		BaseURL:  cfg.PublicBaseURL,
+		Cache:    linkcache.New(rdb, cfg.LinkCache.TTL(), cfg.LinkCache.NegativeTTL()),
 	}
 
 	rl := ratelimit.New(rdb, cfg.RateLimit.Limit, cfg.RateLimit.Window())

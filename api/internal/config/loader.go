@@ -30,6 +30,7 @@ type Config struct {
 	Db             DbConfig
 	Redis          RedisConfig
 	RateLimit      RateLimitConfig
+	LinkCache      LinkCacheConfig
 }
 
 // Load lê o .env (se existir) e as variáveis de ambiente, e devolve um erro
@@ -55,6 +56,7 @@ func Load() (*Config, error) {
 			DbPort:     int64(r.int("DB_PORT")),
 			DbUser:     r.str("DB_USER"),
 			DbPassword: r.str("DB_PASSWORD"),
+			MaxConns:   r.positiveDefault("DB_MAX_CONNS", defaultDBMaxConns),
 		},
 		Redis: RedisConfig{
 			RedisHost:     r.str("REDIS_HOST"),
@@ -67,6 +69,10 @@ func Load() (*Config, error) {
 			Limit:   r.positive("REQUISITION_LIMIT"),
 			Minutes: r.positive("MINUTES_OF_DURATION"),
 		},
+		LinkCache: LinkCacheConfig{
+			TTLSeconds:         r.positiveDefault("LINK_CACHE_TTL_SECONDS", defaultLinkCacheTTL),
+			NegativeTTLSeconds: r.positiveDefault("LINK_CACHE_NEGATIVE_TTL_SECONDS", defaultLinkCacheNegativeTTL),
+		},
 	}
 
 	if len(r.errs) > 0 {
@@ -78,6 +84,18 @@ func Load() (*Config, error) {
 // minAPIKeyBytes: HS256 usa HMAC-SHA256; uma chave curta pode ser quebrada
 // por força bruta offline a partir de qualquer token emitido.
 const minAPIKeyBytes = 32
+
+// defaultDBMaxConns: folga para a concorrência típica sem chegar perto do
+// max_connections=100 padrão do Postgres.
+const defaultDBMaxConns = 20
+
+// TTL do cache do redirect. Positivo: 10 min (a desativação já sobrescreve a
+// entrada; o TTL só limita o pior caso de uma escrita que falhou no Redis).
+// Negativo: 30 s, curto porque um código inexistente pode passar a existir.
+const (
+	defaultLinkCacheTTL         = 600
+	defaultLinkCacheNegativeTTL = 30
+)
 
 // reader acumula erros para reportar todas as variáveis problemáticas de uma vez.
 type reader struct{ errs []error }
@@ -135,6 +153,14 @@ func (r *reader) positive(key string) int {
 		r.errs = append(r.errs, fmt.Errorf("  %s: deve ser um inteiro > 0 (valor atual: %q)", key, v))
 	}
 	return n
+}
+
+// positiveDefault é como positive, mas a variável é opcional (vazia = def).
+func (r *reader) positiveDefault(key string, def int) int {
+	if os.Getenv(key) == "" {
+		return def
+	}
+	return r.positive(key)
 }
 
 func (r *reader) int(key string) int {

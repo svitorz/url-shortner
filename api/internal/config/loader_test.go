@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // setValidEnv define um ambiente completo e válido (t.Setenv restaura no fim).
@@ -56,5 +57,34 @@ func TestLoadRejectsEmptyRedisPassword(t *testing.T) {
 	_, err := Load()
 	if err == nil || !strings.Contains(err.Error(), "REDIS_PASSWORD") {
 		t.Fatalf("Load aceitou REDIS_PASSWORD vazia (err=%v)", err)
+	}
+}
+
+func TestLoadDBMaxConns(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("DB_MAX_CONNS", "")
+	cfg, err := Load()
+	if err != nil || cfg.Db.MaxConns != defaultDBMaxConns {
+		t.Fatalf("padrão: MaxConns=%v err=%v", cfg, err)
+	}
+	t.Setenv("DB_MAX_CONNS", "7")
+	if cfg, err = Load(); err != nil || cfg.Db.MaxConns != 7 {
+		t.Fatalf("valor 7: err=%v", err)
+	}
+	t.Setenv("DB_MAX_CONNS", "0")
+	if _, err = Load(); err == nil {
+		t.Fatal("aceitou DB_MAX_CONNS=0")
+	}
+}
+
+func TestLoadLinkCacheTTL(t *testing.T) {
+	setValidEnv(t)
+	cfg, err := Load()
+	if err != nil || cfg.LinkCache.TTL() != 10*time.Minute || cfg.LinkCache.NegativeTTL() != 30*time.Second {
+		t.Fatalf("padrões: %+v err=%v", cfg.LinkCache, err)
+	}
+	t.Setenv("LINK_CACHE_TTL_SECONDS", "-1")
+	if _, err := Load(); err == nil {
+		t.Fatal("aceitou LINK_CACHE_TTL_SECONDS negativo")
 	}
 }
