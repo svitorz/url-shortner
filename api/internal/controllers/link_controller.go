@@ -1,22 +1,23 @@
 package controllers
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"svitorz/url-shortner/internal/models"
+	"svitorz/url-shortner/internal/shortcode"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gosimple/slug"
-	"gorm.io/gorm"
 )
+
+// maxCodeAttempts: com 62^7 códigos, mesmo com milhões de links a chance de
+// colidir 5 vezes seguidas é desprezível; o limite só evita loop infinito.
+const maxCodeAttempts = 5
 
 func (h *Controller) CreateLink(c *gin.Context) {
 	userId, err := h.Tokens.ExtractTokenID(c)
 	if err != nil {
-		fmt.Println("Erro ao buscar id do usuario em CreateLink", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
 		return
 	}
 
@@ -35,27 +36,27 @@ func (h *Controller) CreateLink(c *gin.Context) {
 		return
 	}
 
-	slugified := slug.Make(parsed.String())
-
+	// Sempre cria um link novo do próprio usuário. Em colisão de código
+	// (índice único em slug), gera outro e tenta de novo.
 	var link models.Link
-
-	tx := h.DB.
-		Where(models.Link{Slug: slugified}).
-		Attrs(models.Link{
-			TargetURL: input.TargetUrl,
-			IsActive:  true,
-			OwnerID:   userId,
-		}).
-		FirstOrCreate(&link)
-
-	if tx.Error != nil {
-		if errors.Is(tx.Error, gorm.ErrDuplicatedKey) {
-			c.JSON(http.StatusConflict, gin.H{"error": "slug already taken"})
+	for attempt := 1; ; attempt++ {
+		code, err := shortcode.New()
+		if err != nil {
+			internalError(c, "gerar código curto", err)
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": tx.Error.Error()})
+		link = models.Link{Slug: code, TargetURL: input.TargetUrl, IsActive: true, OwnerID: userId}
+		err = h.DB.WithContext(c.Request.Context()).Create(&link).Error
+		if err == nil {
+			break
+		}
+		if isUniqueViolation(err) && attempt < maxCodeAttempts {
+			continue
+		}
+		internalError(c, "criar link", err)
 		return
 	}
+	slugified := link.Slug
 
 	scheme := "http"
 	if c.Request.TLS != nil {
