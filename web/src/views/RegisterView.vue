@@ -3,9 +3,12 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api, { errorMessage } from '../services/API'
 import { useAuth } from '../composables/useAuth'
+import { useToast } from '../composables/useToast'
+import AuthCard from '../components/AuthCard.vue'
 
 const router = useRouter()
 const { login } = useAuth()
+const toast = useToast()
 
 const form = ref({ full_name: '', email: '', password: '' })
 const loading = ref(false)
@@ -22,6 +25,7 @@ async function submit() {
     })
     // A API já devolve um token no cadastro: entra direto.
     login(res.data.token)
+    toast.success('Conta criada. Bem-vindo!')
     router.push({ name: 'links' })
   } catch (e) {
     error.value = errorMessage(e, 'Erro ao criar conta')
@@ -32,35 +36,31 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-md p-6">
-    <h1 class="mb-4 text-xl font-semibold">Criar conta</h1>
-
+  <AuthCard title="Criar conta" subtitle="Comece a encurtar links em segundos.">
     <form class="space-y-4" @submit.prevent="submit">
       <div>
-        <label for="name" class="block text-sm font-medium text-gray-700">Nome completo</label>
-        <input id="name" v-model="form.full_name" type="text" required autocomplete="name"
-          class="mt-1 block w-full rounded border border-gray-300 px-3 py-2" />
+        <label for="name" class="label">Nome completo</label>
+        <input id="name" v-model="form.full_name" type="text" required autocomplete="name" class="input mt-1" />
       </div>
       <div>
-        <label for="email" class="block text-sm font-medium text-gray-700">E-mail</label>
-        <input id="email" v-model="form.email" type="email" required autocomplete="email"
-          class="mt-1 block w-full rounded border border-gray-300 px-3 py-2" />
+        <label for="email" class="label">E-mail</label>
+        <input id="email" v-model="form.email" type="email" required autocomplete="email" class="input mt-1" />
       </div>
       <div>
-        <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
-        <!-- 72 bytes é o limite do bcrypt na API -->
+        <label for="password" class="label">Senha</label>
+        <!-- 8 é o mínimo da API; 72 bytes, o limite do bcrypt -->
         <input id="password" v-model="form.password" type="password" required minlength="8" maxlength="72"
-          autocomplete="new-password" class="mt-1 block w-full rounded border border-gray-300 px-3 py-2" />
-        <p class="mt-1 text-xs text-gray-500">Entre 8 e 72 caracteres.</p>
+          autocomplete="new-password" class="input mt-1" />
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Mínimo de 8 caracteres.</p>
       </div>
-      <button type="submit" :disabled="loading"
-        class="w-full rounded bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50">
+      <button type="submit" :disabled="loading" class="btn-primary w-full py-2.5">
         {{ loading ? 'Criando...' : 'Criar conta' }}
       </button>
-      <p v-if="error" class="text-sm text-red-600" role="alert">{{ error }}</p>
-      <p class="text-sm text-gray-600">
-        Já tem conta? <RouterLink to="/login" class="text-indigo-600 hover:underline">Entrar</RouterLink>
-      </p>
+      <p v-if="error" class="text-sm text-rose-600 dark:text-rose-400" role="alert">{{ error }}</p>
     </form>
-  </div>
+
+    <template #footer>
+      Já tem conta? <RouterLink to="/login" class="font-medium text-brand-600 hover:underline dark:text-brand-400">Entrar</RouterLink>
+    </template>
+  </AuthCard>
 </template>
