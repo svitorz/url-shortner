@@ -4,9 +4,23 @@ Encurtador de URLs com API em **Go (Gin + GORM)**, front em **Vue 3 (Vite + Tail
 
 Autor: svitorz · Licença: MIT
 
-- O usuário cria uma conta, encurta URLs (`http://localhost/r/aZ3k9Qp`), lista e desativa os próprios links.
-- O redirect é público e usa cache no Redis.
+- O usuário cria uma conta, encurta URLs (`http://localhost/r/aZ3k9Qp`), acompanha os cliques, gera o QR code e desativa os próprios links.
+- O redirect é público, usa cache no Redis e conta cliques sem escrever no banco a cada acesso.
 - Há testes de integração com Postgres real, CI no GitHub Actions e um teste de carga com os números medidos (abaixo, com o método).
+
+## Front
+
+Vue 3 + Tailwind, com identidade visual própria (verde-água) e **modo escuro**, que segue o sistema ou a escolha salva.
+- **Home pública:** apresenta o serviço e leva ao cadastro.
+- **Painel em "Meus links":**
+  - contadores de links, ativos, desativados e cliques;
+  - criação rápida no topo, busca, filtro por status e ordenação;
+  - tabela no desktop e cartões no celular.
+- **QR code:** gerado no navegador (pacote `qrcode`, sem serviço externo), com download em PNG.
+- **Detalhe:** mostra cliques, status, destino e QR.
+- **Feedback:** toasts, diálogo de confirmação e skeleton no carregamento.
+- **Login e cadastro:** em cartão.
+- **404:** página própria, e cada rota define o título da aba.
 
 ## Arquitetura
 
