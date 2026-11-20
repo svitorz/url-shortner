@@ -223,7 +223,7 @@ O que **não** existe:
 - `VITE_API_BASE` agora chega ao build (arg do proxy), mas `web/src/services/API.js` ainda tem `baseURL: 'http://localhost:8000/api'` fixo: pelo nginx, o front chama a API direto na 8000 (funciona só na própria máquina, via CORS). Fase 6.
 - `GET /healthz` pelo nginx cai no `index.html` do front (200): não é a API. Inofensivo, mas pode confundir.
 - A imagem antiga `url-shortner-web` (492 MB) continua no Docker local, sem uso; fica a critério do usuário apagá-la.
-- Durante a Fase 3, o checkout local passou de `chore/infra-nginx` para `main` sem comando do agente (reflog, 11:27:31). 4 commits caíram na `main` local e foram reaplicados no branch certo; a `main` local ainda os contém (aguardando decisão do usuário para voltá-la a `9a7f8a1`).
+- Durante a Fase 3, o checkout local passou de `chore/infra-nginx` para `main` sem comando do agente (reflog, 11:27:31). 4 commits caíram na `main` local e foram reaplicados no branch certo; com o ok do usuário, a `main` local voltou a `9a7f8a1` (`git branch -f`, depois de conferir que o branch contém tudo). `origin/main` também está em `9a7f8a1`: o merge das fases 0–2 foi enviado ao remoto fora desta sessão.
 - DSN fixa `TimeZone=America/Sao_Paulo` (`config/database.go:21`).
 
 ## Ideias futuras
@@ -233,4 +233,4 @@ O que **não** existe:
 ## Próximo passo
 
 Fase 4 (branch `feat/short-code-cache`): primeiro o teste de carga (escolher k6 vs hey/wrk) no redirect de um slug existente, com `REQUISITION_LIMIT` alto, e a linha de base; depois o cache-aside `link:<slug>` com TTL por env, invalidação ao desativar e cache negativo curto; rodar de novo e comparar.
-Antes: decidir com o usuário o que fazer com a `main` local (4 commits duplicados) e de onde sai o branch da Fase 4.
+Antes: decidir com o usuário de onde sai o branch da Fase 4 (`main` ainda não tem a Fase 3).
