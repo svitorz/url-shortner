@@ -66,6 +66,7 @@ Branch: `docs/readme`, criado a partir de `main` local (merge `--no-ff` de `fix/
 | 7 | Verificação da definição de pronto em ambiente limpo | ✅ ver abaixo |
 | + | Contagem de cliques: `INCR` no 302 + flush periódico com `GETDEL` + flush final no desligamento gracioso (pedido do usuário) | ✅ 6 testes em `clicks` (inclui flushes concorrentes sem dupla contagem e restauração se o banco falhar; prova reversa: `Update` no lugar de `UpdateColumn` muda `updated_at` e falha) + `TestOnlySuccessfulRedirectsCountClicks`; no stack: 0 → 5 após flush, restart grava os 2 pendentes na hora; fumaça 43/0 |
 | + | Teste de carga com cliques | ✅ 3 rodadas válidas; custo não mensurável (faixa sobreposta à do cache) |
+| + | Front com identidade própria, modo escuro, painel, QR code, home pública (pedido do usuário, `feat/web-ui`) | ✅ ESLint 0 + build; roteiro no navegador pelo nginx: tema claro/escuro (salvo), cadastro → painel, criação rápida (toast + destaque), contadores 4/2/2/47 batem com a API, busca/filtro/ordenação, diálogo de QR (PNG decodificado com jsqr = URL curta exata), confirmar (Cancelar não muda; Desativar → 410), detalhe com cliques, 404, login errado em PT; celular 375 px sem rolagem horizontal (cartões); fumaça 43/0, infra 11/11 |
 | + | Front de desenvolvimento no compose: serviço `web-dev` no profile `dev` (pedido do usuário) | ✅ Vite 7.3.1 no container; `/` 200, `/api/ping` 200 pelo proxy do Vite; HMR verificado no navegador (título mudou sem recarregar); fumaça 42/0 (sem reinício) e infra-check 11/11 com ele no ar; lint+build pelo container |
 
 ## Como subir (estado atual)
@@ -226,6 +227,12 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | **Contar cliques agora, com Redis + flush** (pedido do usuário) | Sem escrita no Postgres por clique (o redirect é o caminho mais quente). `GETDEL` torna o flush seguro com várias instâncias; falha no `UPDATE` devolve o valor com `INCRBY`; `UpdateColumn` para não mexer em `last_change`. Trade-offs aceitos: número até `CLICK_FLUSH_SECONDS` atrasado; clique perdido se o Redis estiver fora; pendentes perdidos se o Redis reiniciar sem persistência. Descartado: `UPDATE` por clique (exato, mas uma escrita no banco por redirect) |
 | 2026-11-20 | Desligamento gracioso (`http.Server.Shutdown` + `signal.NotifyContext`) | Necessário para o flush final dos cliques; de quebra, `docker stop` não corta requisições em andamento. Timeout de 8 s, abaixo dos 10 s do `docker stop` |
 | 2026-11-20 | Só redirect 302 conta clique | 404 e 410 não são acessos ao destino |
+| 2026-11-20 | **Identidade própria + modo escuro** (decisão do usuário) | Paleta verde-água em `@theme` do Tailwind 4, componentes como `@utility` (o v4 não aplica classes de `@layer components` dentro de outro `@apply`). Tema por classe `.dark`, aplicado por script inline no `index.html` antes do app (sem piscar). Descartado: só refinar o visual atual |
+| 2026-11-20 | **QR code no navegador** (pacote `qrcode` 1.5.4, decisão do usuário) | Sem serviço externo (a URL do usuário não sai do navegador). Sempre escuro sobre branco, mesmo no tema escuro, para leitura. Custo: +~65 KB no JS antes do gzip |
+| 2026-11-20 | Painel calculado no front sobre `GET /api/links` | Contadores, busca, filtro e ordenação sem rota nova. Limite: com milhares de links seria preciso paginar na API |
+| 2026-11-20 | Pilha de fontes explícita (`Inter, Segoe UI, Roboto, Noto Sans, …`) | No teste, o Chromium ignorava `ui-sans-serif` e o `system-ui` desta máquina apontava para uma fonte monoespaçada: todo o texto saía mono (medido por largura renderizada) |
+| 2026-11-20 | Diálogo de confirmação próprio (headlessui) no lugar do `window.confirm` | Mesmo visual em claro/escuro, acessível; e não trava automação de teste |
+| 2026-11-20 | `npm install --package-lock-only` pelo container, com o usuário do host | O `web/node_modules` do host é o ponto de montagem do volume (do root): instalar ali falharia, e rodar como root deixaria o lockfile do root |
 
 ## Contrato da API (mudanças)
 
@@ -418,6 +425,10 @@ O que **não** existe:
 
 - O primeiro teste de lint/build pelo container escreveu `web/dist` no host como root (bind mount). O comando documentado agora usa `--outDir /tmp/dist`; o `web/dist` antigo ficou (ignorado pelo git), aguardando o usuário apagar.
 - npm 11 avisa que o `postinstall` do esbuild não está em `allowScripts`; dev server, lint e build funcionam mesmo assim (o binário vem do pacote opcional da plataforma).
+
+- `web/src/assets/logo.svg` (logo padrão do template do Vue) ficou sem uso depois da identidade nova; aguardando o usuário decidir apagar.
+- O clipboard do navegador embutido do teste só libera com clique real do mouse; com clique disparado por JavaScript nega (`NotAllowedError`). O CopyButton mostra um toast de erro nesse caso.
+- `feat/web-ui` foi criado a partir de `feat/click-count` (precisa do campo `clicks`): os dois entram na `main` nessa ordem.
 
 ## Ideias futuras
 

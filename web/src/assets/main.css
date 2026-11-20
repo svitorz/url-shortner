@@ -1,11 +1,76 @@
 @import "tailwindcss";
 
-/* O app só tem tema claro: sem isto, o body fica transparente e, com o
-   navegador em modo escuro, o texto preto aparece sobre fundo escuro. */
+/* Modo escuro por classe (.dark no <html>): o useTheme escolhe entre seguir o
+   sistema ou a preferência salva do usuário. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Identidade: verde-água como cor da marca, neutros em "slate". */
+@theme {
+  /* Famílias concretas antes das genéricas: em alguns Linux o "system-ui"
+     aponta para uma fonte monoespaçada e o Chromium ignora "ui-sans-serif"
+     (visto no teste: o texto inteiro saía monoespaçado). */
+  --font-sans: "Inter", "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, "Liberation Sans", sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+  --color-brand-50: oklch(0.98 0.02 178);
+  --color-brand-100: oklch(0.95 0.05 178);
+  --color-brand-200: oklch(0.9 0.09 178);
+  --color-brand-300: oklch(0.84 0.12 178);
+  --color-brand-400: oklch(0.77 0.14 178);
+  --color-brand-500: oklch(0.7 0.14 180);
+  --color-brand-600: oklch(0.6 0.12 182);
+  --color-brand-700: oklch(0.51 0.1 184);
+  --color-brand-800: oklch(0.43 0.08 185);
+  --color-brand-900: oklch(0.37 0.06 186);
+  --color-brand-950: oklch(0.26 0.05 188);
+}
+
 :root {
   color-scheme: light;
 }
+:root.dark {
+  color-scheme: dark;
+}
 
 body {
-  @apply bg-white text-gray-900 antialiased;
+  @apply min-h-screen bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+}
+
+/* Peças reutilizadas pelas telas (@utility: podem ser compostas com @apply
+   e aceitam variantes como hover: e dark:). */
+@utility card {
+  @apply rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
+}
+@utility input {
+  @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400
+    focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30
+    dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500;
+}
+@utility label {
+  @apply block text-sm font-medium text-slate-700 dark:text-slate-300;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2
+    focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:opacity-50 dark:focus-visible:ring-offset-slate-950;
+}
+@utility btn-primary {
+  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700;
+}
+@utility btn-secondary {
+  @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50
+    dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
+}
+@utility btn-danger {
+  @apply btn bg-rose-600 text-white hover:bg-rose-700;
+}
+@utility btn-ghost {
+  @apply btn text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
+}
+@utility badge-active {
+  @apply inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800
+    dark:bg-emerald-500/15 dark:text-emerald-300;
+}
+@utility badge-inactive {
+  @apply inline-flex items-center gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600
+    dark:bg-slate-700/60 dark:text-slate-300;
 }

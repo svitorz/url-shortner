@@ -1,6 +1,6 @@
 // Copiar texto com feedback. Tenta navigator.clipboard (exige contexto seguro
-// e permissão) e, se falhar, o execCommand antigo. Se os dois falharem, avisa
-// para copiar à mão em vez de fingir que copiou.
+// e permissão) e, se falhar, o execCommand antigo. Devolve false se os dois
+// falharem, para quem chama avisar (o CopyButton mostra um toast).
 import { ref } from 'vue'
 
 function legacyCopy(text) {
@@ -21,8 +21,7 @@ function legacyCopy(text) {
 }
 
 export function useCopy() {
-  const copied = ref('') // texto copiado com sucesso
-  const failed = ref('') // texto que não deu para copiar
+  const copied = ref('') // texto copiado com sucesso (some após 2,5 s)
 
   async function copy(text) {
     let ok = false
@@ -37,16 +36,9 @@ export function useCopy() {
     if (!ok) ok = legacyCopy(text)
 
     copied.value = ok ? text : ''
-    failed.value = ok ? '' : text
-    setTimeout(() => {
-      if (copied.value === text) copied.value = ''
-      if (failed.value === text) failed.value = ''
-    }, 2500)
+    if (ok) setTimeout(() => copied.value === text && (copied.value = ''), 2500)
     return ok
   }
 
-  // Rótulo do botão para um texto.
-  const label = (text) => (copied.value === text ? 'Copiado!' : failed.value === text ? 'Copie manualmente' : 'Copiar')
-
-  return { copied, failed, copy, label }
+  return { copied, copy }
 }
