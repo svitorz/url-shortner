@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RateLimiterMiddleware() gin.HandlerFunc {
+func RateLimiterMiddleware(rl *ratelimit.RateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ok, err := ratelimit.RateLimiter(c)
+		ok, err := rl.Allow(c)
 		if err != nil {
 			//TODO: logs
 			c.Next()

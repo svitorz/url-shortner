@@ -5,17 +5,15 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"svitorz/url-shortner/internal/auth"
 	"svitorz/url-shortner/internal/models"
-	"svitorz/url-shortner/internal/repository"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gosimple/slug"
 	"gorm.io/gorm"
 )
 
-func CreateLink(c *gin.Context) {
-	userId, err := auth.ExtractTokenID(c)
+func (h *Controller) CreateLink(c *gin.Context) {
+	userId, err := h.Tokens.ExtractTokenID(c)
 	if err != nil {
 		fmt.Println("Erro ao buscar id do usuario em CreateLink", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
@@ -41,7 +39,7 @@ func CreateLink(c *gin.Context) {
 
 	var link models.Link
 
-	tx := repository.DB.
+	tx := h.DB.
 		Where(models.Link{Slug: slugified}).
 		Attrs(models.Link{
 			TargetURL: input.TargetUrl,
@@ -74,15 +72,15 @@ func CreateLink(c *gin.Context) {
 	})
 }
 
-func GetAllLinks(c *gin.Context) {
-	id, err := auth.ExtractTokenID(c)
+func (h *Controller) GetAllLinks(c *gin.Context) {
+	id, err := h.Tokens.ExtractTokenID(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
 	var links []models.Link
-	if err := repository.DB.WithContext(c.Request.Context()).
+	if err := h.DB.WithContext(c.Request.Context()).
 		Where("owner_id = ?", id).
 		Find(&links).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -102,7 +100,7 @@ func GetAllLinks(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"links": responseLinks})
 }
 
-func GetLinkDetails(c *gin.Context) {
+func (h *Controller) GetLinkDetails(c *gin.Context) {
 	var link models.Link
 
 	var bind struct {
@@ -114,14 +112,14 @@ func GetLinkDetails(c *gin.Context) {
 		return
 	}
 
-	id, err := auth.ExtractTokenID(c)
+	id, err := h.Tokens.ExtractTokenID(c)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	repository.DB.Where("slug = ?", bind.Slug).First(&link)
+	h.DB.Where("slug = ?", bind.Slug).First(&link)
 
 	if id != link.OwnerID {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "you have not permission to do that"})
@@ -138,7 +136,7 @@ func GetLinkDetails(c *gin.Context) {
 	c.JSON(http.StatusFound, gin.H{"link": responseLink})
 }
 
-func DeactivateLink(c *gin.Context) {
+func (h *Controller) DeactivateLink(c *gin.Context) {
 	var link models.Link
 
 	var bind struct {
@@ -150,14 +148,14 @@ func DeactivateLink(c *gin.Context) {
 		return
 	}
 
-	id, err := auth.ExtractTokenID(c)
+	id, err := h.Tokens.ExtractTokenID(c)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	repository.DB.Where("slug = ?", bind.Slug).First(&link)
+	h.DB.Where("slug = ?", bind.Slug).First(&link)
 
 	if id != link.OwnerID {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "you have not permission to do that"})
@@ -166,12 +164,12 @@ func DeactivateLink(c *gin.Context) {
 
 	link.IsActive = false
 
-	repository.DB.Save(&link)
+	h.DB.Save(&link)
 
 	c.JSON(http.StatusOK, gin.H{"success": "link deactivate"})
 }
 
-func LinkRedirect(c *gin.Context) {
+func (h *Controller) LinkRedirect(c *gin.Context) {
 	var link models.Link
 
 	var bind struct {
@@ -183,7 +181,7 @@ func LinkRedirect(c *gin.Context) {
 		return
 	}
 
-	repository.DB.Where("slug = ?", bind.Slug).First(&link)
+	h.DB.Where("slug = ?", bind.Slug).First(&link)
 
 	if !link.IsActive {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "This link is unactive"})

@@ -1,7 +1,9 @@
 package requests
 
 import (
+	"svitorz/url-shortner/internal/controllers"
 	"svitorz/url-shortner/internal/requests/middleware"
+	"svitorz/url-shortner/internal/requests/ratelimit"
 	"svitorz/url-shortner/internal/requests/routes"
 	"time"
 
@@ -9,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter() *gin.Engine {
+func SetupRouter(ctl *controllers.Controller, rl *ratelimit.RateLimiter) *gin.Engine {
 	r := gin.New()
 
 	r.Use(cors.New(cors.Config{
@@ -21,12 +23,12 @@ func SetupRouter() *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	r.Use(gin.Logger(), gin.Recovery(), middleware.RateLimiterMiddleware())
+	r.Use(gin.Logger(), gin.Recovery(), middleware.RateLimiterMiddleware(rl))
 
-	authMw := middleware.AuthRequired()
+	authMw := middleware.AuthRequired(ctl.Tokens)
 
 	api := r.Group("/api")
-	routes.Config(api, authMw)
+	routes.Config(api, authMw, ctl)
 
 	return r
 }

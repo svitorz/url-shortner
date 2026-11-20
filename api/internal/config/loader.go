@@ -1,59 +1,87 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strconv"
 
 	"github.com/joho/godotenv"
 )
 
-var AppPort int64
-var HashCost int
-
 type ApiConfig struct {
 	ApiKey        string
-	TokenLifeSpan int64
+	TokenLifeSpan int64 // minutos
 }
 
-func init() {
-	err := godotenv.Load()
-
-	if err != nil {
-		fmt.Println("Error to handle .env", err)
-	}
+// Config reúne toda a configuração lida do ambiente.
+type Config struct {
+	AppPort   int
+	HashCost  int
+	Api       ApiConfig
+	Db        DbConfig
+	Redis     RedisConfig
+	RateLimit RateLimitConfig
 }
 
-func LoadApiConfig() (*ApiConfig, error) {
-	tokLifeSpan, err := strconv.ParseInt(os.Getenv("TOKEN_LIFE_SPAN"), 10, 64)
-
-	if err != nil {
-		fmt.Println("Erro ao buscar tempo vida do token JWT")
-		return &ApiConfig{}, err
+// Load lê o .env (se existir) e as variáveis de ambiente, e devolve um erro
+// listando TODAS as variáveis ausentes ou inválidas, para falhar cedo no boot.
+func Load() (*Config, error) {
+	if err := godotenv.Load(); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("erro ao ler .env: %w", err)
 	}
 
-	return &ApiConfig{
-		ApiKey:        os.Getenv("API_KEY"),
-		TokenLifeSpan: tokLifeSpan,
-	}, nil
+	r := &reader{}
+	cfg := &Config{
+		AppPort:  r.int("APP_PORT"),
+		HashCost: r.int("HASH_COST"),
+		Api: ApiConfig{
+			ApiKey:        r.str("API_KEY"),
+			TokenLifeSpan: int64(r.int("TOKEN_LIFE_SPAN")),
+		},
+		Db: DbConfig{
+			DbName:     r.str("DB_NAME"),
+			DbHost:     r.str("DB_HOST"),
+			DbPort:     int64(r.int("DB_PORT")),
+			DbUser:     r.str("DB_USER"),
+			DbPassword: r.str("DB_PASSWORD"),
+		},
+		Redis: RedisConfig{
+			RedisHost:     r.str("REDIS_HOST"),
+			RedisPort:     int64(r.int("REDIS_PORT")),
+			RedisPassword: os.Getenv("REDIS_PASSWORD"), // opcional por enquanto (fase 3 passa a exigir)
+			RedisDb:       int64(r.int("REDIS_DB")),
+			RedisProtocol: int64(r.int("REDIS_PROTOCOL")),
+		},
+		RateLimit: RateLimitConfig{
+			Limit:   r.int("REQUISITION_LIMIT"),
+			Minutes: r.int("MINUTES_OF_DURATION"),
+		},
+	}
+
+	if len(r.errs) > 0 {
+		return nil, fmt.Errorf("configuração inválida:\n%w", errors.Join(r.errs...))
+	}
+	return cfg, nil
 }
 
-func LoadHashCost() (int, error) {
-	cost, err := strconv.Atoi(os.Getenv("HASH_COST"))
+// reader acumula erros para reportar todas as variáveis problemáticas de uma vez.
+type reader struct{ errs []error }
 
-	if err != nil {
-		return 0, err
+func (r *reader) str(key string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		r.errs = append(r.errs, fmt.Errorf("  %s: obrigatória e está vazia", key))
 	}
-
-	return cost, nil
+	return v
 }
 
-func LoadAppConfig() (int, error) {
-	appport, err := strconv.ParseInt(os.Getenv("APP_PORT"), 10, 64)
-
+func (r *reader) int(key string) int {
+	v := os.Getenv(key)
+	n, err := strconv.Atoi(v)
 	if err != nil {
-		return 0, err
+		r.errs = append(r.errs, fmt.Errorf("  %s: deve ser um inteiro (valor atual: %q)", key, v))
 	}
-
-	return int(appport), nil
+	return n
 }

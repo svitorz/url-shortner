@@ -6,12 +6,11 @@ import (
 	"net/http"
 	"svitorz/url-shortner/internal/auth"
 	"svitorz/url-shortner/internal/models"
-	"svitorz/url-shortner/internal/repository"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Login(c *gin.Context) {
+func (h *Controller) Login(c *gin.Context) {
 	var input struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required"`
@@ -23,7 +22,7 @@ func Login(c *gin.Context) {
 		return
 	}
 	var user models.User
-	result := repository.DB.Where("email = ?", input.Email).First(&user)
+	result := h.DB.Where("email = ?", input.Email).First(&user)
 	if result.Error != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
 		fmt.Println("Erro no login", result.Error)
@@ -38,7 +37,7 @@ func Login(c *gin.Context) {
 
 	log.Printf("User logged in: %v", user.Email)
 
-	token, err := auth.GenerateToken(user.ID)
+	token, err := h.Tokens.GenerateToken(user.ID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error generating token"})
 		return
@@ -47,4 +46,4 @@ func Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
-func Logout(c *gin.Context) {}
+func (h *Controller) Logout(c *gin.Context) {}

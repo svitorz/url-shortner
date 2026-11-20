@@ -6,13 +6,12 @@ import (
 	"strings"
 	"svitorz/url-shortner/internal/auth"
 	"svitorz/url-shortner/internal/models"
-	"svitorz/url-shortner/internal/repository"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-func CreateUser(c *gin.Context) {
+func (h *Controller) CreateUser(c *gin.Context) {
 	var input struct {
 		Name     string `json:"full_name" binding:"required"`
 		Email    string `json:"email" binding:"required,email"`
@@ -24,7 +23,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	encryptedPassword, err := auth.HashPassword(input.Password)
+	encryptedPassword, err := auth.HashPassword(input.Password, h.HashCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error encrypting password"})
 		return
@@ -39,7 +38,7 @@ func CreateUser(c *gin.Context) {
 		UpdatedAt: time.Now(),
 	}
 
-	result := repository.DB.Create(&user)
+	result := h.DB.Create(&user)
 	if result.Error != nil {
 		if strings.Contains(result.Error.Error(), "idx_users_email") {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Email already in use"})
@@ -50,7 +49,7 @@ func CreateUser(c *gin.Context) {
 	}
 	log.Printf("User created: %v", user)
 
-	token, err := auth.GenerateToken(user.ID)
+	token, err := h.Tokens.GenerateToken(user.ID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error generating token"})
 		return
@@ -63,7 +62,7 @@ func CreateUser(c *gin.Context) {
 	})
 }
 
-func UpdateUser(c *gin.Context) {
+func (h *Controller) UpdateUser(c *gin.Context) {
 	var bind struct {
 		ID uint `uri:"id" binding:"required"`
 	}
@@ -82,7 +81,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	id, err := auth.ExtractTokenID(c)
+	id, err := h.Tokens.ExtractTokenID(c)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
@@ -96,7 +95,7 @@ func UpdateUser(c *gin.Context) {
 
 	var user models.User
 
-	repository.DB.First(&user, id)
+	h.DB.First(&user, id)
 
 	if user.ID != bind.ID {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "you can not edit a user who are not you"})
@@ -107,7 +106,7 @@ func UpdateUser(c *gin.Context) {
 	user.Email = &input.Email
 	user.UpdatedAt = time.Now()
 
-	result := repository.DB.Save(&user)
+	result := h.DB.Save(&user)
 
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
@@ -117,7 +116,7 @@ func UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusAccepted, "User updated successfully")
 }
 
-func DeleteUser(c *gin.Context) {
+func (h *Controller) DeleteUser(c *gin.Context) {
 	var bind struct {
 		ID uint `uri:"id" binding:"required"`
 	}
@@ -127,7 +126,7 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	id, err := auth.ExtractTokenID(c)
+	id, err := h.Tokens.ExtractTokenID(c)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
@@ -141,14 +140,14 @@ func DeleteUser(c *gin.Context) {
 
 	var user models.User
 
-	repository.DB.First(&user, id)
+	h.DB.First(&user, id)
 
 	if user.ID != bind.ID {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "you can not delete a user who are not you"})
 		return
 	}
 
-	tx := repository.DB.Delete(&user)
+	tx := h.DB.Delete(&user)
 
 	if tx.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": tx.Error})
