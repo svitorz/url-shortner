@@ -4,8 +4,8 @@
 
 ## Fase atual
 
-**Fase 3 — infra (nginx, Dockerfiles, compose): concluída.** Aguardando "continuar" para a Fase 4.
-Branch: `chore/infra-nginx`, criado a partir de `main` @ `9a7f8a1` (merge `--no-ff` de `fix/api-stabilize`, fases 0–2). Nada enviado ao remoto.
+**Fase 4 — cache do redirect: não iniciada.** Aguardando "continuar".
+Branch: `feat/short-code-cache`, criado a partir de `main` @ `cf96090` (merge `--no-ff` de `chore/infra-nginx`, Fase 3). Nada enviado ao remoto nesta sessão.
 
 ## Checklist
 
@@ -233,4 +233,4 @@ O que **não** existe:
 ## Próximo passo
 
 Fase 4 (branch `feat/short-code-cache`): primeiro o teste de carga (escolher k6 vs hey/wrk) no redirect de um slug existente, com `REQUISITION_LIMIT` alto, e a linha de base; depois o cache-aside `link:<slug>` com TTL por env, invalidação ao desativar e cache negativo curto; rodar de novo e comparar.
-Antes: decidir com o usuário de onde sai o branch da Fase 4 (`main` ainda não tem a Fase 3).
+Branch já criado a partir da `main` com as fases 0–3.
