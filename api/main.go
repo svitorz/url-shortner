@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"svitorz/url-shortner/internal/config"
 	"svitorz/url-shortner/internal/models"
 	"svitorz/url-shortner/internal/requests"
@@ -21,7 +22,10 @@ func main() {
 	}
 	fmt.Println("carregou configuracoes")
 
-	models.LoadMigrations()
+	if err := models.LoadMigrations(); err != nil {
+		fmt.Println("Erro ao executar migrations:", err)
+		os.Exit(1)
+	}
 
 	fmt.Println("Executando migrations")
 
