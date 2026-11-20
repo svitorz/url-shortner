@@ -1,66 +1,76 @@
-@base=
+# Requisições de exemplo (REST Client do VS Code / httpyac).
+# Copie para app.http (ignorado pelo git) e preencha as variáveis.
+# Contrato completo: api/docs/API.md
+@host=http://localhost
+@base={{host}}/api
 @token=
-
-####################
-#   Users routes   #
-####################
-POST {{base}}/user HTTP/1.1
-Content-Type: application/json
-
-{
-    "full_name": "Your name here",
-    "email":"your email here",
-    "password": "your password here"
-}
-
-### Login
-POST {{base}}/login HTTP/1.1
-Content-Type: application/json
-
-{
-    "email":"your email here",
-    "password": "your password here"
-}
-
-### Update user
-PUT {{base}}/user/{{id}} HTTP/1.1
-Content-Type: application/json
-Authorization: Bearer {{token}} 
-
-{
-    "full_name": "your name here",
-    "email":"your email here"
-}
-
-### Delete User
-DELETE {{base}}/user/{{id}} HTTP/1.1
-Content-Type: application/json
-Authorization: Bearer {{token}} 
-
-####################
-#   Links routes   #
-####################
-
-### ping
-GET {{base}}/ping HTTP/1.1
-Content-Type: application/json
-
-### create link
-POST {{base}}/links HTTP/1.1
-Content-Type: application/json
-Authorization: Bearer {{token}} 
-
-{
-    "target_url": "insert a url here"
-}
-
+@id=
 @slug=
 
-###
-POST {{base}}/links/{{slug}}/deactivate HTTP/1.1
-Content-Type: application/json
-Authorization: Bearer {{token}} 
+### Ping
+GET {{base}}/ping
 
-###
-GET {{base}}/r/{{slug}} HTTP/1.1
+####################
+#   Usuários       #
+####################
+
+### Cadastro (devolve token)
+POST {{base}}/user
 Content-Type: application/json
+
+{
+    "full_name": "Seu nome",
+    "email": "voce@exemplo.com",
+    "password": "senha-com-8-ou-mais"
+}
+
+### Login (devolve token)
+POST {{base}}/login
+Content-Type: application/json
+
+{
+    "email": "voce@exemplo.com",
+    "password": "senha-com-8-ou-mais"
+}
+
+### Atualizar o próprio usuário (id = user_id do token)
+PUT {{base}}/user/{{id}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "full_name": "Novo nome",
+    "email": "novo@exemplo.com"
+}
+
+### Excluir o próprio usuário (apaga os links dele)
+DELETE {{base}}/user/{{id}}
+Authorization: Bearer {{token}}
+
+####################
+#   Links          #
+####################
+
+### Criar link
+POST {{base}}/links
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "target_url": "https://exemplo.com/pagina"
+}
+
+### Listar meus links
+GET {{base}}/links
+Authorization: Bearer {{token}}
+
+### Detalhe
+GET {{base}}/links/{{slug}}
+Authorization: Bearer {{token}}
+
+### Desativar (sem volta)
+POST {{base}}/links/{{slug}}/deactivate
+Authorization: Bearer {{token}}
+
+### Redirect público (fora de /api)
+GET {{host}}/r/{{slug}}

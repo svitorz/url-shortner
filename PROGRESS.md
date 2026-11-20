@@ -4,8 +4,8 @@
 
 ## Fase atual
 
-**Fase 6 — front: concluída.** Aguardando "continuar" para a Fase 7.
-Branch: `fix/web`, criado a partir de `main` @ `b04433a` (merge `--no-ff` de `test/consolidate-ci`, Fase 5). Nada enviado ao remoto nesta sessão; `origin/main` estava em `053505d` (Fase 4), enviado fora da sessão.
+**Fase 7 — documentação: concluída. Todas as fases (0–7) concluídas.**
+Branch: `docs/readme`, criado a partir de `main` local (merge `--no-ff` de `fix/web`, Fase 6). Nada enviado ao remoto nesta sessão; `origin/main` estava em `b04433a` (Fase 5), enviado fora da sessão.
 
 ## Checklist
 
@@ -59,7 +59,11 @@ Branch: `fix/web`, criado a partir de `main` @ `b04433a` (merge `--no-ff` de `te
 | 6 | API: CORS removido (`58b456b`) — decisão do usuário | ✅ `TestNoCORSForOtherOrigins` (falhava antes: `http://localhost` e `:5173` recebiam ACAO) |
 | 6 | Front: cliente único, 401, `requiresAuth`, web history, telas e estados (`7e938a8`) | ✅ ESLint 0 problemas + build + roteiro manual pelo nginx (abaixo) |
 | 6 | CI: ESLint no job do front (`45a4281`) | ✅ YAML válido |
-| 7 | ver plano | ⏳ |
+| 7 | Varredura do histórico por segredos (165 commits) | ✅ 4 JWTs reais em `app.http` (expirados em 08–10/01/2026); nenhum `.env` real; histórico **não** reescrito (decisão do usuário) |
+| 7 | `AGILE.md` removido da árvore (`8203346`) — decisão do usuário | ✅ continua no histórico |
+| 7 | `api/docs/API.md` + `app.http.example` atualizado + `WEB_PORT` removido (`2e8db24`) | ✅ constantes conferidas no código; exemplo `curl` executado contra o stack (302 + `Location`) |
+| 7 | README em PT (`4f59376`) | ✅ diagramas Mermaid renderizados com mermaid 11.4.1 (o 2º quebrava com `;` e foi corrigido) |
+| 7 | Verificação da definição de pronto em ambiente limpo | ✅ ver abaixo |
 
 ## Como subir (estado atual)
 
@@ -103,6 +107,23 @@ O front é servido pelo próprio nginx do proxy em `/` (o serviço `web` não ex
 | POST /api/logout | 200 vazio (não faz nada) |
 | DELETE /api/user/:id com links | **500** expondo struct do erro do Postgres |
 | Reinício da API | **todos os dados apagados** (2 usuários → 0) |
+
+## Definição de pronto — verificação final (Fase 7)
+
+Feita em 2026-11-20 com `git archive HEAD` (commit `4f59376`) num diretório temporário, projeto do compose `dodcheck`, `cp .env.example .env` + só os 3 segredos gerados com `openssl rand` e portas 8099/8001:
+
+| Critério | Resultado |
+|---|---|
+| `cp .env.example .env` + `docker compose up -d --build` sobe tudo | ✅ 4 serviços, os 3 com healthcheck `healthy` |
+| Dados sobrevivem a restart | ✅ fumaça (reinício da API) + `down`/`up`: usuários 1 → 1 |
+| Fumaça 100% | ✅ 43/43; `infra-check.sh` 11/11 |
+| Testes e CI verdes, `go vet` limpo | ✅ `scripts/test.sh` (gofmt, vet, 10 pacotes ok); ESLint 0 problemas; build ok. ⚠️ CI no GitHub não verificado (`gh` ausente) |
+| URL curta funciona ponta a ponta pelo nginx | ✅ fumaça + roteiro manual da Fase 6 |
+| Cache e rate limit com testes | ✅ `linkcache` (7), integração do cache (6), rate limiter (6) + `TestRateLimitThroughRouter` |
+| Linha de base e resultado do teste de carga documentados com método | ✅ README + seção Medições |
+| PROGRESS completo e README fiel ao código | ✅ |
+
+Para isso o stack de desenvolvimento foi parado com `docker compose down` (sem `-v`, volume `url-shortner_pgdata` intacto) e religado depois: fumaça 43/43, 43 usuários preservados. Ficaram do teste o volume `dodcheck_pgdata` e as imagens `dodcheck-*` (aguardando o usuário decidir apagar).
 
 ## Script de fumaça — resultado atual
 
@@ -195,6 +216,9 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | Redirect pós-login só para caminho interno (`/x`, não `//x`) | `?redirect=` vem da URL: sem isso, um link de login poderia mandar o usuário a outro site |
 | 2026-11-20 | Copiar: clipboard → `execCommand` → aviso "Copie manualmente" | O navegador embutido do teste nega o clipboard; antes o erro era engolido sem feedback |
 | 2026-11-20 | Tema claro explícito (`color-scheme: light`, `body` com fundo) | Com o navegador em modo escuro, o body transparente deixava texto preto sobre fundo escuro (visto no teste) |
+| 2026-11-20 | **Não reescrever o histórico** (decisão do usuário) | Os 4 JWTs vazados já expiraram e a chave atual é nova; reescrever exigiria `push --force`, quebraria clones e não apagaria cópias. Orientação: nunca reutilizar a `API_KEY` da época (jan/2026) |
+| 2026-11-20 | **Remover `AGILE.md`** (decisão do usuário) | Atividade acadêmica com nome completo e RA, sem relação com o funcionamento do projeto |
+| 2026-11-20 | `api/docs/API.md` documenta inconsistências reais (login 400, token 400) em vez de "consertar no texto" | A documentação descreve o código; corrigir é outra mudança |
 
 ## Contrato da API (mudanças)
 
@@ -368,6 +392,11 @@ O que **não** existe:
 - `AccountView` começa com os campos vazios (não há `GET /me`); o `PUT` exige nome e e-mail.
 - `gh` não está instalado nesta máquina: o resultado do CI no GitHub não foi verificado (o `origin/main` já está em `b04433a`, com o workflow).
 
+- `container_name` fixo no `docker-compose.yml` impede dois stacks do projeto na mesma máquina (visto na verificação final); `loadtest/run.sh` também usa os nomes `url-shortner-*` e a rede `url-shortner_url-shortner-network`.
+- `web/README.md` ainda é o texto padrão do template do Vite (em inglês).
+- Login: corpo inválido → 400 (o resto da API usa 422); falha ao gerar token → 400 no login e no cadastro (deveria ser 500). Documentado em `api/docs/API.md`.
+- Histórico do git: 4 JWTs em `app.http` (commits `6697933`, `9b0c4ab`, `1408791`, `9cf4158`, jan/2026), expirados; `.env.example` antigos com `DB_PASSWORD=postgres` (padrão da imagem).
+
 ## Ideias futuras
 
 - **Contagem de cliques:** `INCR clicks:<slug>` no Redis a cada redirect + flush assíncrono periódico para o Postgres (ex.: a cada N s, `GETDEL` e `UPDATE links SET clicks = clicks + n`). Trade-off: não pesa no redirect nem faz escrita no banco por requisição, mas perde os cliques ainda não descarregados se o Redis cair sem persistência, e a contagem no banco fica atrasada em até N s. A alternativa (escrever no banco a cada clique) é exata e simples, mas põe uma escrita no caminho mais quente.
@@ -375,5 +404,4 @@ O que **não** existe:
 
 ## Próximo passo
 
-Fase 7 (branch `docs/readme`): README em PT com diagrama Mermaid, como rodar, tabela de rotas fiel ao código, decisões e trade-offs, limitações, resultados do teste de carga com método; `api/docs/API.md`; perguntar o destino do `AGILE.md` (nome completo e RA do aluno); revisar o histórico do git atrás de segredos commitados, sem reescrever sem confirmação.
-Antes: decidir com o usuário de onde sai o branch da Fase 7 (`main` ainda não tem a Fase 6).
+Plano concluído. Pendências que dependem do usuário: enviar a `main` ao GitHub (o CI só roda lá) e conferir o resultado; decidir se apaga o volume `dodcheck_pgdata` e as imagens `dodcheck-*` do teste final. Sugestões para depois estão em "Achados fora de escopo" e "Ideias futuras".
