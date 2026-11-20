@@ -1,14 +1,30 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"svitorz/url-shortner/internal/auth"
 	"svitorz/url-shortner/internal/models"
+	"sync"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+var (
+	dummyHashOnce sync.Once
+	dummyHashVal  string
+)
+
+// dummyHash é um hash bcrypt com o mesmo custo dos reais, calculado uma vez.
+func (h *Controller) dummyHash() string {
+	dummyHashOnce.Do(func() {
+		dummyHashVal, _ = auth.HashPassword("senha-ficticia-para-tempo-constante", h.HashCost)
+	})
+	return dummyHashVal
+}
 
 func (h *Controller) Login(c *gin.Context) {
 	var input struct {
@@ -22,10 +38,16 @@ func (h *Controller) Login(c *gin.Context) {
 		return
 	}
 	var user models.User
-	result := h.DB.Where("email = ?", input.Email).First(&user)
+	result := h.DB.WithContext(c.Request.Context()).Where("email = ?", input.Email).First(&user)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		internalError(c, "buscar usuário no login", result.Error)
+		return
+	}
 	if result.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
-		fmt.Println("Erro no login", result.Error)
+		// E-mail inexistente: mesma resposta e mesmo custo de bcrypt que senha
+		// errada, para não revelar quais e-mails estão cadastrados.
+		auth.VerifyPassword(h.dummyHash(), input.Password)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
