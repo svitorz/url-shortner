@@ -3,7 +3,6 @@ package controllers
 import (
 	"log"
 	"net/http"
-	"strings"
 	"svitorz/url-shortner/internal/auth"
 	"svitorz/url-shortner/internal/models"
 	"time"
@@ -38,13 +37,13 @@ func (h *Controller) CreateUser(c *gin.Context) {
 		UpdatedAt: time.Now(),
 	}
 
-	result := h.DB.Create(&user)
+	result := h.DB.WithContext(c.Request.Context()).Create(&user)
 	if result.Error != nil {
-		if strings.Contains(result.Error.Error(), "idx_users_email") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Email already in use"})
+		if isUniqueViolation(result.Error) {
+			c.JSON(http.StatusConflict, gin.H{"error": "e-mail já cadastrado"})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": result.Error.Error()})
+		internalError(c, "criar usuário", result.Error)
 		return
 	}
 	log.Printf("User created: %v", user)
@@ -82,38 +81,32 @@ func (h *Controller) UpdateUser(c *gin.Context) {
 	}
 
 	id, err := h.Tokens.ExtractTokenID(c)
-
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
 		return
 	}
 
 	if id != bind.ID {
-		c.JSON(http.StatusForbidden, gin.H{"unauthorized": "you have not permission to do that"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para editar outro usuário"})
 		return
 	}
 
-	var user models.User
-
-	h.DB.First(&user, id)
-
-	if user.ID != bind.ID {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "you can not edit a user who are not you"})
+	res := h.DB.WithContext(c.Request.Context()).Model(&models.User{}).Where("id = ?", id).
+		Updates(map[string]any{"name": input.Name, "email": input.Email, "updated_at": time.Now()})
+	if res.Error != nil {
+		if isUniqueViolation(res.Error) {
+			c.JSON(http.StatusConflict, gin.H{"error": "e-mail já cadastrado"})
+			return
+		}
+		internalError(c, "atualizar usuário", res.Error)
+		return
+	}
+	if res.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
 
-	user.Name = input.Name
-	user.Email = &input.Email
-	user.UpdatedAt = time.Now()
-
-	result := h.DB.Save(&user)
-
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
-		return
-	}
-	log.Printf("User updated: %v", user)
-	c.JSON(http.StatusAccepted, "User updated successfully")
+	c.JSON(http.StatusOK, gin.H{"message": "usuário atualizado"})
 }
 
 func (h *Controller) DeleteUser(c *gin.Context) {
