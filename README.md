@@ -94,13 +94,27 @@ scripts/test.sh
 - **`infra-check.sh`:** confere portas, healthchecks, usuário não-root e senhas obrigatórias.
 - **`test.sh`:** roda gofmt, vet e os testes Go com um Postgres 18 descartável.
 
-### Desenvolvimento do front
+### Desenvolvimento do front (com HMR)
+
+O front de desenvolvimento também roda no compose, com a mesma imagem `node:24-alpine` do build. Assim a versão do Node é a mesma em qualquer máquina e nada precisa ser instalado no host:
 
 ```bash
-cd web && npm install && npm run dev
+docker compose --profile dev up -d
 ```
 
-O Vite encaminha `/api` e `/r` para `http://localhost:8000`, que é a API do compose publicada em `127.0.0.1:APP_PORT`. Para apontar para outra API, use a variável `VITE_DEV_API`.
+- **Onde abrir:** `http://localhost:5173` (ou a porta definida em `WEB_DEV_PORT`). A porta é publicada só no loopback.
+- **Edição:** as mudanças em `web/` aparecem na hora (HMR), sem rebuild.
+- **API:** o Vite encaminha `/api` e `/r` para a API dentro da rede do compose.
+- **Dependências:** o `node_modules` fica no volume `web_node_modules`, e a cada subida o `npm ci` o sincroniza com o `package-lock.json`. Depois de mudar dependências, basta reiniciar o serviço: `docker compose --profile dev restart web-dev`.
+- **Sem o profile:** `docker compose up` sobe só o front de produção, servido pelo nginx.
+
+O Docker cria uma pasta `web/node_modules` vazia, do root, no host: é o ponto de montagem do volume, e o git a ignora. Se algum dia quiser rodar `npm` direto no host, apague essa pasta antes.
+
+Para lint e build do front sem Node instalado:
+
+```bash
+docker compose --profile dev run --rm --no-deps web-dev sh -c "npm ci && npx eslint . && npx vite build --outDir /tmp/dist --emptyOutDir"
+```
 
 ## Variáveis de ambiente
 
@@ -121,6 +135,7 @@ O Vite encaminha `/api` e `/r` para `http://localhost:8000`, que é a API do com
 | `API_KEY` | **sim** | vazio | segredo HS256 dos JWT (mínimo 32 bytes) |
 | `TOKEN_LIFE_SPAN` | sim | 60 | validade do token, **em minutos** |
 | `VITE_API_BASE` | não | `/api` | base da API usada no build do front |
+| `WEB_DEV_PORT` | não | 5173 | porta no host do front de desenvolvimento (`--profile dev`) |
 
 Não coloque comentário na mesma linha de um valor: o Compose lê `CHAVE=   # texto` como se o valor fosse `# texto`.
 

@@ -85,8 +85,36 @@ services:
     networks:
       - url-shortner-network
 
+  # Front em modo desenvolvimento (Vite com HMR). Só sobe com o profile dev:
+  #   docker compose --profile dev up -d
+  # Mesma imagem Node do build do proxy, então a versão é igual em qualquer
+  # máquina e nada é instalado no host. O código vem do bind mount de web/;
+  # o node_modules fica num volume (binários do alpine, não do host).
+  web-dev:
+    container_name: url-shortner-web-dev
+    image: node:24-alpine
+    profiles: ["dev"]
+    working_dir: /web
+    # npm ci a cada subida: o node_modules sempre bate com o package-lock.json.
+    command: ["sh", "-c", "npm ci --no-audit --no-fund && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort"]
+    environment:
+      # O proxy do Vite (vite.config.js) manda /api e /r/ para a API na rede do compose.
+      - VITE_DEV_API=http://api:${APP_PORT}
+    volumes:
+      - ./web:/web
+      - web_node_modules:/web/node_modules
+    ports:
+      # Só no loopback, como a API: é um servidor de desenvolvimento.
+      - "127.0.0.1:${WEB_DEV_PORT:-5173}:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - url-shortner-network
+
 networks:
   url-shortner-network:
     driver: bridge
 volumes:
   pgdata:
+  web_node_modules:
