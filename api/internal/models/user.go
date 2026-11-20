@@ -14,5 +14,5 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 
 	// Relação 1:N com Link usando OwnerID como FK no lado de Link
-	Links []Link `gorm:"foreignKey:OwnerID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	Links []Link `gorm:"foreignKey:OwnerID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }

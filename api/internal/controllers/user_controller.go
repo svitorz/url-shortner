@@ -127,32 +127,26 @@ func (h *Controller) DeleteUser(c *gin.Context) {
 	}
 
 	id, err := h.Tokens.ExtractTokenID(c)
-
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
 		return
 	}
 
 	if id != bind.ID {
-		c.JSON(http.StatusForbidden, gin.H{"unauthorized": "you have not permission to do that"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para excluir outro usuário"})
 		return
 	}
 
-	var user models.User
-
-	h.DB.First(&user, id)
-
-	if user.ID != bind.ID {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "you can not delete a user who are not you"})
+	// Os links do usuário são apagados pela FK ON DELETE CASCADE.
+	res := h.DB.WithContext(c.Request.Context()).Delete(&models.User{}, id)
+	if res.Error != nil {
+		internalError(c, "excluir usuário", res.Error)
+		return
+	}
+	if res.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
 
-	tx := h.DB.Delete(&user)
-
-	if tx.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": tx.Error})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "usuário excluído"})
 }

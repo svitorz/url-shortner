@@ -12,7 +12,7 @@ type Link struct {
 
 	// FK para User
 	OwnerID uint `gorm:"not null;index"`
-	Owner   User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;foreignKey:OwnerID;references:ID"`
+	Owner   User `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;foreignKey:OwnerID;references:ID"`
 
 	// Relação 1:N com Click
 	//Clicks []Click `gorm:"foreignKey:LinkID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
