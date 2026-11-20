@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func AuthRequired() gin.HandlerFunc {
+func AuthRequired(tokens *auth.Tokens) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		err := auth.TokenValid(c)
+		err := tokens.TokenValid(c)
 		if err != nil {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return

@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"svitorz/url-shortner/internal/controllers"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -11,15 +13,16 @@ type Route struct {
 	useAuth     bool
 }
 
-func AllRoutes() []Route {
-	r := make([]Route, 0, len(appRoutes)+len(userRoutes))
-	r = append(r, appRoutes...)
-	r = append(r, userRoutes...)
+func AllRoutes(ctl *controllers.Controller) []Route {
+	app, user := appRoutes(ctl), userRoutes(ctl)
+	r := make([]Route, 0, len(app)+len(user))
+	r = append(r, app...)
+	r = append(r, user...)
 	return r
 }
 
-func Config(r gin.IRoutes, authMw gin.HandlerFunc) {
-	for _, route := range AllRoutes() {
+func Config(r gin.IRoutes, authMw gin.HandlerFunc, ctl *controllers.Controller) {
+	for _, route := range AllRoutes(ctl) {
 		if route.useAuth && authMw != nil {
 			r.Handle(route.Method, route.Path, authMw, route.HandlerFunc)
 		} else {

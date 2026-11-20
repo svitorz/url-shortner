@@ -3,16 +3,16 @@ package controllers
 import (
 	"log"
 	"net/http"
-	"strings"
 	"svitorz/url-shortner/internal/auth"
 	"svitorz/url-shortner/internal/models"
-	"svitorz/url-shortner/internal/repository"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-func CreateUser(c *gin.Context) {
+const maxPasswordBytes = 72
+
+func (h *Controller) CreateUser(c *gin.Context) {
 	var input struct {
 		Name     string `json:"full_name" binding:"required"`
 		Email    string `json:"email" binding:"required,email"`
@@ -24,9 +24,16 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	encryptedPassword, err := auth.HashPassword(input.Password)
+	// bcrypt só aceita até 72 bytes (não runas): acima disso o hash falhava e
+	// virava 500. O validator "max" conta caracteres, por isso a checagem aqui.
+	if len(input.Password) > maxPasswordBytes {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "senha deve ter no máximo 72 bytes"})
+		return
+	}
+
+	encryptedPassword, err := auth.HashPassword(input.Password, h.HashCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error encrypting password"})
+		internalError(c, "gerar hash da senha", err)
 		return
 	}
 
@@ -39,23 +46,22 @@ func CreateUser(c *gin.Context) {
 		UpdatedAt: time.Now(),
 	}
 
-	result := repository.DB.Create(&user)
+	result := h.DB.WithContext(c.Request.Context()).Create(&user)
 	if result.Error != nil {
-		if strings.Contains(result.Error.Error(), "idx_users_email") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Email already in use"})
+		if isUniqueViolation(result.Error) {
+			c.JSON(http.StatusConflict, gin.H{"error": "e-mail já cadastrado"})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": result.Error.Error()})
+		internalError(c, "criar usuário", result.Error)
 		return
 	}
-	log.Printf("User created: %v", user)
+	log.Printf("usuário criado (id=%d)", user.ID)
 
-	token, err := auth.GenerateToken(user.ID)
+	token, err := h.Tokens.GenerateToken(user.ID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Error generating token"})
 		return
 	}
-	log.Printf("Token generated: %s", token)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created successfully",
@@ -63,7 +69,7 @@ func CreateUser(c *gin.Context) {
 	})
 }
 
-func UpdateUser(c *gin.Context) {
+func (h *Controller) UpdateUser(c *gin.Context) {
 	var bind struct {
 		ID uint `uri:"id" binding:"required"`
 	}
@@ -82,42 +88,36 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	id, err := auth.ExtractTokenID(c)
-
+	id, err := h.Tokens.ExtractTokenID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
 		return
 	}
 
 	if id != bind.ID {
-		c.JSON(http.StatusForbidden, gin.H{"unauthorized": "you have not permission to do that"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para editar outro usuário"})
 		return
 	}
 
-	var user models.User
-
-	repository.DB.First(&user, id)
-
-	if user.ID != bind.ID {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "you can not edit a user who are not you"})
+	res := h.DB.WithContext(c.Request.Context()).Model(&models.User{}).Where("id = ?", id).
+		Updates(map[string]any{"name": input.Name, "email": input.Email, "updated_at": time.Now()})
+	if res.Error != nil {
+		if isUniqueViolation(res.Error) {
+			c.JSON(http.StatusConflict, gin.H{"error": "e-mail já cadastrado"})
+			return
+		}
+		internalError(c, "atualizar usuário", res.Error)
+		return
+	}
+	if res.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
 
-	user.Name = input.Name
-	user.Email = &input.Email
-	user.UpdatedAt = time.Now()
-
-	result := repository.DB.Save(&user)
-
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
-		return
-	}
-	log.Printf("User updated: %v", user)
-	c.JSON(http.StatusAccepted, "User updated successfully")
+	c.JSON(http.StatusOK, gin.H{"message": "usuário atualizado"})
 }
 
-func DeleteUser(c *gin.Context) {
+func (h *Controller) DeleteUser(c *gin.Context) {
 	var bind struct {
 		ID uint `uri:"id" binding:"required"`
 	}
@@ -127,33 +127,27 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	id, err := auth.ExtractTokenID(c)
-
+	id, err := h.Tokens.ExtractTokenID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
 		return
 	}
 
 	if id != bind.ID {
-		c.JSON(http.StatusForbidden, gin.H{"unauthorized": "you have not permission to do that"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para excluir outro usuário"})
 		return
 	}
 
-	var user models.User
-
-	repository.DB.First(&user, id)
-
-	if user.ID != bind.ID {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "you can not delete a user who are not you"})
+	// Os links do usuário são apagados pela FK ON DELETE CASCADE.
+	res := h.DB.WithContext(c.Request.Context()).Delete(&models.User{}, id)
+	if res.Error != nil {
+		internalError(c, "excluir usuário", res.Error)
+		return
+	}
+	if res.RowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
 
-	tx := repository.DB.Delete(&user)
-
-	if tx.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": tx.Error})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "usuário excluído"})
 }

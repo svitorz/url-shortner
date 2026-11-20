@@ -1,22 +1,13 @@
 package config
 
-import (
-	"os"
-	"strconv"
-)
+import "time"
 
-func LoadRateLimitConf() ([]int, error) {
-	limit, err := strconv.Atoi(os.Getenv("REQUISITION_LIMIT"))
+type RateLimitConfig struct {
+	Limit   int // REQUISITION_LIMIT
+	Minutes int // MINUTES_OF_DURATION
+}
 
-	if err != nil {
-		return []int{}, err
-	}
-
-	duration, err := strconv.Atoi(os.Getenv("MINUTES_OF_DURATION"))
-
-	if err != nil {
-		return []int{}, err
-	}
-
-	return []int{limit, duration}, nil
+// Window é a duração da janela fixa do rate limiter.
+func (c RateLimitConfig) Window() time.Duration {
+	return time.Duration(c.Minutes) * time.Minute
 }

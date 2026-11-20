@@ -1,22 +1,32 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"svitorz/url-shortner/internal/config"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
-var RDB *redis.Client
+// ConnectRedis cria o cliente e faz um Ping para falhar cedo se estiver inválido.
+func ConnectRedis(cfg config.RedisConfig) (*redis.Client, error) {
+	addr := fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort)
 
-func init() {
-	cfg, err := config.LoadRedisConf()
-	if err != nil {
-		fmt.Println("Erro ao buscar configuracoes do redis")
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: cfg.RedisPassword,
+		DB:       int(cfg.RedisDb),
+		Protocol: int(cfg.RedisProtocol),
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		_ = rdb.Close()
+		return nil, err
 	}
 
-	RDB, err = config.ConnectRedis(cfg)
-	if err != nil {
-		fmt.Println("Erro ao se conectar redis")
-	}
+	return rdb, nil
 }
