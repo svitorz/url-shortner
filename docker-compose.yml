@@ -1,9 +1,9 @@
-services: 
+services:
   api:
     container_name: url-shortner-api
     build: api/
     depends_on:
-      db: 
+      db:
         condition: service_healthy
         restart: true
     env_file:
@@ -42,12 +42,14 @@ services:
   # Novo: servidor de desenvolvimento do Vite (SPA)
   web:
     container_name: url-shortner-web
-    build: 
+    build:
       web/
     expose:
       - "${WEB_PORT}"
     environment:
       VITE_API_BASE: /api
+    networks:
+      - url-shortner-network
 
   proxy:
     container_name: url-shortner-nginx
@@ -62,6 +64,8 @@ services:
       - web
     ports:
       - 80:80
+    networks:
+      - url-shortner-network
 networks:
   url-shortner-network:
     driver: bridge
