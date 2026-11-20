@@ -72,7 +72,7 @@ func (h *Controller) CreateLink(c *gin.Context) {
 func (h *Controller) GetAllLinks(c *gin.Context) {
 	id, err := h.Tokens.ExtractTokenID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
 		return
 	}
 
@@ -80,90 +80,81 @@ func (h *Controller) GetAllLinks(c *gin.Context) {
 	if err := h.DB.WithContext(c.Request.Context()).
 		Where("owner_id = ?", id).
 		Find(&links).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		internalError(c, "listar links", err)
 		return
 	}
 
 	responseLinks := make([]map[string]any, 0, len(links))
 	for _, element := range links {
-		responseLinks = append(responseLinks, map[string]any{
-			"slug":        element.Slug,
-			"target_url":  element.TargetURL,
-			"is_active":   element.IsActive,
-			"last_change": element.UpdatedAt,
-		})
+		responseLinks = append(responseLinks, linkResponse(element))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"links": responseLinks})
 }
 
-func (h *Controller) GetLinkDetails(c *gin.Context) {
-	var link models.Link
+func linkResponse(l models.Link) map[string]any {
+	return map[string]any{
+		"slug":        l.Slug,
+		"target_url":  l.TargetURL,
+		"is_active":   l.IsActive,
+		"last_change": l.UpdatedAt,
+	}
+}
 
+// ownedLink busca o link do slug da rota que pertence ao usuário do token.
+// Responde e devolve ok=false em qualquer falha. Link de outro usuário dá
+// 404, igual a inexistente, para não revelar que o código existe.
+func (h *Controller) ownedLink(c *gin.Context) (models.Link, bool) {
+	var link models.Link
 	var bind struct {
 		Slug string `uri:"slug" binding:"required"`
 	}
-
 	if err := c.ShouldBindUri(&bind); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
-		return
+		c.JSON(http.StatusNotFound, gin.H{"error": "link não encontrado"})
+		return link, false
 	}
 
-	id, err := h.Tokens.ExtractTokenID(c)
-
+	userID, err := h.Tokens.ExtractTokenID(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
+		return link, false
+	}
+
+	err = h.DB.WithContext(c.Request.Context()).
+		Where("slug = ? AND owner_id = ?", bind.Slug, userID).
+		First(&link).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "link não encontrado"})
+		return link, false
+	}
+	if err != nil {
+		internalError(c, "buscar link", err)
+		return link, false
+	}
+	return link, true
+}
+
+func (h *Controller) GetLinkDetails(c *gin.Context) {
+	link, ok := h.ownedLink(c)
+	if !ok {
 		return
 	}
-
-	h.DB.Where("slug = ?", bind.Slug).First(&link)
-
-	if id != link.OwnerID {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "you have not permission to do that"})
-		return
-	}
-
-	responseLink := map[string]any{
-		"slug":        link.Slug,
-		"target_url":  link.TargetURL,
-		"is_active":   link.IsActive,
-		"last_change": link.UpdatedAt,
-	}
-
-	c.JSON(http.StatusFound, gin.H{"link": responseLink})
+	c.JSON(http.StatusOK, gin.H{"link": linkResponse(link)})
 }
 
 func (h *Controller) DeactivateLink(c *gin.Context) {
-	var link models.Link
-
-	var bind struct {
-		Slug string `uri:"slug" binding:"required"`
-	}
-
-	if err := c.ShouldBindUri(&bind); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+	link, ok := h.ownedLink(c)
+	if !ok {
 		return
 	}
 
-	id, err := h.Tokens.ExtractTokenID(c)
-
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	if err := h.DB.WithContext(c.Request.Context()).
+		Model(&link).Update("is_active", false).Error; err != nil {
+		internalError(c, "desativar link", err)
 		return
 	}
 
-	h.DB.Where("slug = ?", bind.Slug).First(&link)
-
-	if id != link.OwnerID {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "you have not permission to do that"})
-		return
-	}
-
-	link.IsActive = false
-
-	h.DB.Save(&link)
-
-	c.JSON(http.StatusOK, gin.H{"success": "link deactivate"})
+	c.JSON(http.StatusOK, gin.H{"message": "link desativado"})
 }
 
 func (h *Controller) LinkRedirect(c *gin.Context) {
