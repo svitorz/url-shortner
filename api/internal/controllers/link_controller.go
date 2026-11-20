@@ -1,11 +1,13 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 	"svitorz/url-shortner/internal/models"
 	"svitorz/url-shortner/internal/shortcode"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // maxCodeAttempts: com 62^7 códigos, mesmo com milhões de links a chance de
@@ -165,23 +167,32 @@ func (h *Controller) DeactivateLink(c *gin.Context) {
 }
 
 func (h *Controller) LinkRedirect(c *gin.Context) {
-	var link models.Link
-
 	var bind struct {
 		Slug string `uri:"slug" binding:"required"`
 	}
-
 	if err := c.ShouldBindUri(&bind); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": "link não encontrado"})
 		return
 	}
 
-	h.DB.Where("slug = ?", bind.Slug).First(&link)
+	var link models.Link
+	err := h.DB.WithContext(c.Request.Context()).Where("slug = ?", bind.Slug).First(&link).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "link não encontrado"})
+		return
+	}
+	if err != nil {
+		internalError(c, "buscar link para redirect", err)
+		return
+	}
 
+	// 410 Gone: o link existiu e foi desativado pelo dono.
 	if !link.IsActive {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "This link is unactive"})
+		c.JSON(http.StatusGone, gin.H{"error": "link desativado"})
 		return
 	}
 
-	c.Redirect(http.StatusMovedPermanently, link.TargetURL)
+	// 302 e não 301: 301 é cacheado pelo navegador sem prazo, então desativar
+	// o link não teria efeito para quem já visitou.
+	c.Redirect(http.StatusFound, link.TargetURL)
 }
