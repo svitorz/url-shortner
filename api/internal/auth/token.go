@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"fmt"
-	"strconv"
+	"errors"
+	"math"
 	"strings"
 	"time"
 
@@ -30,51 +30,49 @@ func (t *Tokens) GenerateToken(userID uint) (string, error) {
 }
 
 func (t *Tokens) keyFunc(token *jwt.Token) (interface{}, error) {
-	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-		return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-	}
 	return []byte(t.apiKey), nil
 }
 
+// parse aceita só HS256 (o que GenerateToken emite) e exige exp: sem
+// WithExpirationRequired, um token sem exp nunca expiraria.
+func (t *Tokens) parse(c *gin.Context) (*jwt.Token, error) {
+	return jwt.Parse(ExtractToken(c), t.keyFunc,
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithExpirationRequired(),
+	)
+}
+
 func (t *Tokens) TokenValid(c *gin.Context) error {
-	_, err := jwt.Parse(ExtractToken(c), t.keyFunc)
+	_, err := t.ExtractTokenID(c)
 	return err
 }
 
+// ExtractToken lê só o header Authorization: Bearer <token>. Token na query
+// string não é aceito porque vai parar em logs, histórico e Referer.
 func ExtractToken(c *gin.Context) string {
-	if token := strings.TrimSpace(c.Query("token")); token != "" {
-		return token
-	}
 	bearer := strings.TrimSpace(c.GetHeader("Authorization"))
-	if bearer == "" {
-		return ""
-	}
-
 	const prefix = "bearer "
-	lower := strings.ToLower(bearer)
-	if strings.HasPrefix(lower, prefix) {
-		return strings.TrimSpace(bearer[len("Bearer "):])
-	}
-
-	parts := strings.SplitN(bearer, " ", 2)
-	if len(parts) == 2 {
-		return strings.TrimSpace(parts[1])
+	if len(bearer) > len(prefix) && strings.EqualFold(bearer[:len(prefix)], prefix) {
+		return strings.TrimSpace(bearer[len(prefix):])
 	}
 	return ""
 }
 
+var errInvalidClaims = errors.New("token sem user_id válido")
+
 func (t *Tokens) ExtractTokenID(c *gin.Context) (uint, error) {
-	token, err := jwt.Parse(ExtractToken(c), t.keyFunc)
+	token, err := t.parse(c)
 	if err != nil {
 		return 0, err
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
-	if ok && token.Valid {
-		uid, err := strconv.ParseUint(fmt.Sprintf("%.0f", claims["user_id"]), 10, 32)
-		if err != nil {
-			return 0, err
-		}
-		return uint(uid), nil
+	if !ok || !token.Valid {
+		return 0, errInvalidClaims
 	}
-	return 0, nil
+	// números JSON chegam como float64
+	uid, ok := claims["user_id"].(float64)
+	if !ok || uid < 1 || uid > math.MaxUint32 || uid != math.Trunc(uid) {
+		return 0, errInvalidClaims
+	}
+	return uint(uid), nil
 }
