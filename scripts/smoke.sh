@@ -63,6 +63,18 @@ echo "== base: $API"
 req GET "$API/ping"
 check "ping" "200" "$code"
 
+# ---------- front (nginx serve o build do Vite) ----------
+ctype() { curl -s -o "$BODY" -w '%{http_code} %{content_type}' "$@"; }
+r=$(ctype "$BASE_URL/")
+check "[H16] / serve o index.html do front" "200 text/html.*" "$r"
+r=$(ctype "$BASE_URL/links")
+check "[H16] rota da SPA (/links) cai no index.html (try_files)" "200 text/html.*" "$r"
+asset=$(grep -o '/assets/[^"]*\.js' "$BODY" | head -1)
+r=$(curl -s -o /dev/null -H 'Accept-Encoding: gzip' -w '%{http_code} %header{content-encoding}' "$BASE_URL${asset:-/assets/nao-achou.js}")
+check "[H18] JS do front com gzip" "200 gzip" "$r"
+r=$(ctype "$BASE_URL/assets/nao-existe.js")
+check "[H16] asset inexistente -> 404 (não o index.html)" "404 .*" "$r"
+
 # ---------- usuários ----------
 register "$EA"
 check "cadastro A" "201" "$code"

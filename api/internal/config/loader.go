@@ -59,7 +59,7 @@ func Load() (*Config, error) {
 		Redis: RedisConfig{
 			RedisHost:     r.str("REDIS_HOST"),
 			RedisPort:     int64(r.int("REDIS_PORT")),
-			RedisPassword: os.Getenv("REDIS_PASSWORD"), // opcional por enquanto (fase 3 passa a exigir)
+			RedisPassword: r.str("REDIS_PASSWORD"), // Redis sem senha na rede do compose é aceito por qualquer container
 			RedisDb:       int64(r.int("REDIS_DB")),
 			RedisProtocol: int64(r.int("REDIS_PROTOCOL")),
 		},

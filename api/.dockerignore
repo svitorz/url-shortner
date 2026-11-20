@@ -1,0 +1,7 @@
+# Contexto de build só com o que o binário precisa.
+.env
+.env.*
+**/*_test.go
+*.md
+Dockerfile
+.dockerignore

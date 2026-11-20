@@ -1,0 +1,57 @@
+# Template processado pelo entrypoint da imagem oficial do nginx: ${APP_PORT}
+# é trocado pelo valor do ambiente (as variáveis do nginx, como $host, ficam
+# intactas porque não existem no ambiente do container).
+
+upstream api {
+    server api:${APP_PORT};
+    keepalive 16;
+}
+
+server {
+    listen      80;
+    server_name _;
+    server_tokens off;
+
+    root /usr/share/nginx/html;
+
+    gzip            on;
+    gzip_vary       on;
+    gzip_proxied    any;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_types      text/css application/javascript application/json image/svg+xml text/plain;
+
+    # Herdados pelas locations que fazem proxy (nenhuma redefine proxy_set_header).
+    proxy_http_version 1.1;
+    proxy_set_header   Connection "";
+    proxy_set_header   Host $host;
+    proxy_set_header   X-Real-IP $remote_addr;
+    # Sobrescreve (não anexa) o X-Forwarded-For: a API confia nele vindo de
+    # IPs privados, então o cliente não pode injetar um IP falso.
+    proxy_set_header   X-Forwarded-For $remote_addr;
+    proxy_connect_timeout 5s;
+    proxy_send_timeout    15s;
+    proxy_read_timeout    15s;
+
+    location /api/ {
+        proxy_pass http://api;
+    }
+
+    # URL curta pública: GET /r/<código> é atendido pela API.
+    location /r/ {
+        proxy_pass http://api;
+    }
+
+    # Arquivos do build do Vite têm hash no nome: podem ficar em cache "para sempre".
+    location /assets/ {
+        try_files $uri =404;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # SPA: qualquer outro caminho cai no index.html (sempre revalidado).
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache";
+    }
+}
