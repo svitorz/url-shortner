@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"svitorz/url-shortner/internal/auth"
+	"svitorz/url-shortner/internal/clicks"
 	"svitorz/url-shortner/internal/linkcache"
 	"svitorz/url-shortner/internal/shortcode"
 
@@ -17,6 +18,8 @@ type Controller struct {
 	BaseURL string
 	// Cache do redirect (nil = sem cache, tudo vai ao banco).
 	Cache *linkcache.Cache
+	// Clicks conta os redirects (nil = sem contagem).
+	Clicks *clicks.Counter
 	// NewCode gera o código curto (nil = shortcode.New). Existe para os
 	// testes forçarem colisão e exercitarem o retry do CreateLink.
 	NewCode func() (string, error)

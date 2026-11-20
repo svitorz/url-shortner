@@ -105,10 +105,13 @@ Objeto `link` nas respostas:
   "url": "http://localhost/r/aZ3k9Qp",
   "target_url": "https://exemplo.com/pagina",
   "is_active": true,
+  "clicks": 42,
   "last_change": "2026-11-20T13:47:08.123-03:00"
 }
 ```
-`url` é montada a partir de `PUBLIC_BASE_URL` (configuração), nunca do header `Host`.
+- **`url`:** montada a partir de `PUBLIC_BASE_URL` (configuração), nunca do header `Host`.
+- **`clicks`:** total de redirects 302 já gravado no banco. Fica até `CLICK_FLUSH_SECONDS` (padrão 10 s) atrás do real.
+- **`last_change`:** não muda com cliques.
 
 ### `POST /api/links` — criar (Bearer)
 ```json
@@ -146,6 +149,8 @@ Objeto `link` nas respostas:
 | 302 | link ativo, com `Location: <target_url>`. É 302 e não 301 porque o navegador guarda o 301 sem prazo, e a desativação não teria efeito para quem já visitou |
 | 404 | `{"error":"link não encontrado"}` |
 | 410 | `{"error":"link desativado"}` |
+
+**Cliques:** cada 302 faz `INCR clicks:<slug>` no Redis, com timeout de 100 ms. A cada `CLICK_FLUSH_SECONDS`, um flush move os contadores para `links.clicks` (`GETDEL`; se o banco falhar, o valor volta ao Redis). Também há um flush final no desligamento (`SIGTERM`). 404 e 410 não contam. Se o Redis estiver fora, o redirect funciona e o clique não é contado.
 
 **Cache:** a resposta usa cache-aside no Redis, com a chave `link:<slug>`.
 - **TTL:** `LINK_CACHE_TTL_SECONDS` (padrão 600) para link existente e `LINK_CACHE_NEGATIVE_TTL_SECONDS` (padrão 30) para código inexistente.

@@ -103,6 +103,7 @@ func (h *Controller) linkResponse(l models.Link) map[string]any {
 		"url":         h.shortURL(l.Slug),
 		"target_url":  l.TargetURL,
 		"is_active":   l.IsActive,
+		"clicks":      l.Clicks,
 		"last_change": l.UpdatedAt,
 	}
 }
@@ -189,6 +190,14 @@ func (h *Controller) LinkRedirect(c *gin.Context) {
 	if !e.Active {
 		c.JSON(http.StatusGone, gin.H{"error": "link desativado"})
 		return
+	}
+
+	// Só redirect de verdade conta clique (404/410 não). Falha no Redis não
+	// impede o redirect: o clique é perdido e logado.
+	if h.Clicks != nil {
+		if err := h.Clicks.Incr(c.Request.Context(), bind.Slug); err != nil {
+			log.Printf("cliques: não contou %s: %v", bind.Slug, err)
+		}
 	}
 
 	// 302 e não 301: 301 é cacheado pelo navegador sem prazo, então desativar

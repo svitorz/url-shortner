@@ -31,6 +31,8 @@ type Config struct {
 	Redis          RedisConfig
 	RateLimit      RateLimitConfig
 	LinkCache      LinkCacheConfig
+	// ClickFlushSeconds: intervalo do flush dos cliques do Redis para o banco.
+	ClickFlushSeconds int
 }
 
 // Load lê o .env (se existir) e as variáveis de ambiente, e devolve um erro
@@ -69,6 +71,7 @@ func Load() (*Config, error) {
 			Limit:   r.positive("REQUISITION_LIMIT"),
 			Minutes: r.positive("MINUTES_OF_DURATION"),
 		},
+		ClickFlushSeconds: r.positiveDefault("CLICK_FLUSH_SECONDS", defaultClickFlushSeconds),
 		LinkCache: LinkCacheConfig{
 			TTLSeconds:         r.positiveDefault("LINK_CACHE_TTL_SECONDS", defaultLinkCacheTTL),
 			NegativeTTLSeconds: r.positiveDefault("LINK_CACHE_NEGATIVE_TTL_SECONDS", defaultLinkCacheNegativeTTL),
@@ -92,6 +95,10 @@ const defaultDBMaxConns = 20
 // TTL do cache do redirect. Positivo: 10 min (a desativação já sobrescreve a
 // entrada; o TTL só limita o pior caso de uma escrita que falhou no Redis).
 // Negativo: 30 s, curto porque um código inexistente pode passar a existir.
+// Flush dos cliques: 10 s é o atraso máximo do número no banco; menor = mais
+// escritas no Postgres.
+const defaultClickFlushSeconds = 10
+
 const (
 	defaultLinkCacheTTL         = 600
 	defaultLinkCacheNegativeTTL = 30

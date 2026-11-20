@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"os"
+	"os/signal"
 	"svitorz/url-shortner/internal/auth"
+	"svitorz/url-shortner/internal/clicks"
 	"svitorz/url-shortner/internal/config"
 	"svitorz/url-shortner/internal/controllers"
 	"svitorz/url-shortner/internal/linkcache"
@@ -11,6 +15,8 @@ import (
 	"svitorz/url-shortner/internal/repository"
 	"svitorz/url-shortner/internal/requests"
 	"svitorz/url-shortner/internal/requests/ratelimit"
+	"syscall"
+	"time"
 )
 
 func main() {
@@ -53,6 +59,7 @@ func run() error {
 		HashCost: cfg.HashCost,
 		BaseURL:  cfg.PublicBaseURL,
 		Cache:    linkcache.New(rdb, cfg.LinkCache.TTL(), cfg.LinkCache.NegativeTTL()),
+		Clicks:   clicks.New(rdb, db),
 	}
 
 	rl := ratelimit.New(rdb, cfg.RateLimit.Limit, cfg.RateLimit.Window())
@@ -63,5 +70,38 @@ func run() error {
 	}
 	fmt.Println("setup router")
 
-	return r.Run(fmt.Sprintf(":%d", cfg.AppPort))
+	// SIGTERM (docker stop) e Ctrl+C encerram de forma graciosa: param de
+	// aceitar conexões, terminam as requisições em andamento e fazem um último
+	// flush dos cliques.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	flushDone := make(chan struct{})
+	go func() {
+		ctl.Clicks.Run(ctx, time.Duration(cfg.ClickFlushSeconds)*time.Second)
+		close(flushDone)
+	}()
+
+	srv := &http.Server{
+		Addr:              fmt.Sprintf(":%d", cfg.AppPort),
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- srv.ListenAndServe() }()
+
+	select {
+	case err := <-serveErr:
+		stop()
+		<-flushDone
+		return err
+	case <-ctx.Done():
+	}
+
+	fmt.Println("encerrando")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	err = srv.Shutdown(shutdownCtx)
+	<-flushDone
+	return err
 }
