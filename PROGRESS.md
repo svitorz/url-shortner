@@ -4,7 +4,7 @@
 
 ## Fase atual
 
-**Fase 5 — testes e CI: não iniciada.** Aguardando "continuar".
+**Fase 5 — testes e CI: concluída.** Aguardando "continuar" para a Fase 6.
 Branch: `test/consolidate-ci` (o plano não nomeia branch para a Fase 5), criado a partir de `main` local (merge `--no-ff` de `feat/short-code-cache`, Fase 4). Nada enviado ao remoto nesta sessão; `origin/main` estava em `cf96090` (Fase 3), enviado fora da sessão.
 
 ## Checklist
@@ -38,7 +38,7 @@ Branch: `test/consolidate-ci` (o plano não nomeia branch para a Fase 5), criado
 | 2 | H14 JWT só Bearer, HS256, `exp` obrigatório (`e4e2419`) | ✅ 9 casos em `TestRejectsInvalidTokens` |
 | 2 | H14 `API_KEY` ≥ 32 bytes (`e10dc8b`) | ✅ teste |
 | 2 | H15 remover logout (`3cd6479`), `go mod tidy` (`5fe4388`) | ✅ fumaça, build/vet/test |
-| 2 | Teste do loop de retry do código curto (colisão forçada) | ⏳ Fase 5 (precisa de Postgres de teste no CI) |
+| 2 | Teste do loop de retry do código curto (colisão forçada) | ✅ Fase 5 (`TestCreateLinkRetriesOnCodeCollision`, `…GivesUpAfterMaxAttempts`) |
 | 3 | Checagens escritas antes (`scripts/infra-check.sh` + seção front da fumaça) (`d53be0f`) | ✅ antes: 4 + 7 falhas |
 | 3 | `GET /healthz` com ping no Postgres (`a8eb739`) | ✅ `TestHealthDBDown`/`TestHealthDBUp`; db parado → api `unhealthy`, volta sozinha |
 | 3 | Dockerfile da API multi-stage, alpine, UID 10001, `GIN_MODE=release` (`6f2a861`) | ✅ infra-check `id -u`; 2,06 GB → 52,7 MB |
@@ -50,7 +50,12 @@ Branch: `test/consolidate-ci` (o plano não nomeia branch para a Fase 5), criado
 | 4 | Cliente Redis respeita prazo do context (`46baa72`) | ✅ `TestRedisHangingTimesOut` (3,001 s → 0,10 s) + `TestRedisOptionsRespectContextDeadline` |
 | 4 | Cache-aside `link:<slug>`, TTL por env, cache negativo, invalidação, fallback ao banco (`d1dd972`) | ✅ 7 testes `linkcache` + 6 de integração (Postgres real + miniredis); 4 provas reversas falham sem cada parte; fumaça 43/0 |
 | 4 | Teste de carga com cache | ✅ 3 rodadas válidas, 0 erros |
-| 5–7 | ver plano | ⏳ |
+| 5 | Banco próprio por teste (`internal/testdb`) + `scripts/test.sh` (`dba251c`) | ✅ 0 testes pulados com `-v`; no CI, sem banco = falha (verificado com `CI=true`) |
+| 5 | Gerador de código injetável (`f1d5120`) e retry de colisão testado | ✅ 3 testes (sucesso na 2ª, 500 após 5 tentativas, falha do gerador) |
+| 5 | `UpdateUser` checa posse antes do corpo (`11542c5`) — decisão do usuário | ✅ `TestLinkOwnership` (falha na versão anterior: 422 ≠ 403) |
+| 5 | Testes de ponta a ponta pelo router real (`297f369`, `87852c7`) | ✅ auth, posse, redirect, rate limit, login, conflitos |
+| 5 | CI GitHub Actions: gofmt, vet, test com Postgres 18, build do front (`ac25e22`) | ✅ YAML válido + comandos simulados localmente; ⚠️ **não rodou no GitHub** (nada enviado) |
+| 6–7 | ver plano | ⏳ |
 
 ## Como subir (estado atual)
 
@@ -61,8 +66,7 @@ PROXY_PORT=80 scripts/smoke.sh   # use o mesmo PROXY_PORT do .env
 scripts/infra-check.sh           # portas, healthchecks, usuário não-root, senhas obrigatórias
 ```
 
-Testes Go (de `api/`): `go test ./...`. O teste de migração usa Postgres real e é pulado sem
-`TEST_DATABASE_DSN` (ex.: container descartável `postgres:18` em `127.0.0.1:55432`).
+Testes Go: `scripts/test.sh` (sobe Postgres 18 descartável em `127.0.0.1:55432`, roda gofmt, vet e test; aceita args do `go test`, ex.: `scripts/test.sh -run Redirect -v`). Sem o script, `go test ./...` pula os testes de integração (no CI, falha).
 
 Na máquina de desenvolvimento as portas 80 e 8080 estão ocupadas por outros projetos; o `.env` local usa `PROXY_PORT=8088`.
 O front é servido pelo próprio nginx do proxy em `/` (o serviço `web` não existe mais).
@@ -170,6 +174,13 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | TTL 600 s positivo / 30 s negativo, opcionais por env | Positivo só limita o pior caso de uma escrita no Redis que falhou (a desativação já sobrescreve). Negativo curto porque um código inexistente pode passar a existir |
 | 2026-11-20 | Timeout de 100 ms por operação de cache + `ContextTimeoutEnabled` no cliente | Redis travado vira miss rápido e o redirect vai ao banco. Sem a opção, o go-redis ignora o prazo (medido: 3,001 s) |
 | 2026-11-20 | Erro de Redis no cache = miss (vai ao banco), só log | Mesmo princípio do rate limiter (fail open): Redis fora deixa o redirect mais lento, não quebrado |
+| 2026-11-20 | **Testes de integração com Postgres real descartável + httptest** (decisão do usuário) | Pegam erros de SQL/constraint/FK (como H1 e H8) que mocks não pegam. Local: container `--rm` em 127.0.0.1; CI: service container. Descartado: sqlmock (afirma o SQL gerado, quebra em refactor) |
+| 2026-11-20 | **Redis nos testes: miniredis** (decisão do usuário) | Em processo, `FastForward` de TTL, simula Redis fora. O Redis real é coberto pela fumaça no compose. Descartado: Redis real nos testes (TTL vira espera real) |
+| 2026-11-20 | **CI: gofmt + vet + test + build do front, sem fumaça no compose** (decisão do usuário) | É o pedido do plano e roda rápido. Descartado: job com `docker compose up` + fumaça (mais completo, mais lento e frágil) |
+| 2026-11-20 | Um banco Postgres por teste (`CREATE DATABASE t_<aleatório>` … `DROP … WITH (FORCE)`) | O `go test` roda pacotes em paralelo e o teste de migração recria tabelas: num banco só, quebraria os outros testes de forma intermitente |
+| 2026-11-20 | Teste de integração sem banco: pula localmente, **falha** com `CI` definida | Local continua rodando `go test ./...` sem Docker; no CI, pular esconderia a falta do banco |
+| 2026-11-20 | Testes de contrato em `internal/apitest` pelo `SetupRouter` | Testam o caminho real (middlewares de auth e rate limit, rotas), não handlers isolados |
+| 2026-11-20 | `Controller.NewCode` (gerador injetável) | Única forma simples de forçar colisão no índice único sem depender de sorte; nil = `shortcode.New` |
 
 ## Contrato da API (mudanças)
 
@@ -190,6 +201,8 @@ Formato de erro: sempre `{"error": "<mensagem>"}`. Sucesso sem entidade: `{"mess
 | Autenticação | aceitava `?token=` e qualquer esquema no `Authorization`; token sem `exp` nunca expirava | só `Authorization: Bearer`; só HS256; `exp` e `user_id` obrigatórios |
 | Rate limit | janela quebrada (1 s renovável), chave `<ip>`, XFF de qualquer um | janela fixa `MINUTES_OF_DURATION` min, chave `ratelimit:<ip>`, XFF só de `TRUSTED_PROXIES`; fail open com log |
 
+Fase 5: `PUT /api/user/:id` de outro usuário responde **403** mesmo com corpo inválido (antes validava o corpo primeiro e dava 422).
+
 Fase 3: nova rota interna `GET /healthz` → 200 `{"status":"ok","db":"ok"}` ou 503 (só dentro da rede do compose; pelo nginx, `/healthz` é página do front). O nginx agora casa `/api/` (antes `/api`, que também pegava `/apiqualquercoisa`). `REDIS_PASSWORD` passou a ser obrigatória.
 
 Novas variáveis: `PUBLIC_BASE_URL` (obrigatória), `TRUSTED_PROXIES` (opcional). `API_KEY` ≥ 32 bytes; `REQUISITION_LIMIT` e `MINUTES_OF_DURATION` > 0.
@@ -202,6 +215,12 @@ Tamanho de imagem (não é desempenho): `docker image ls`, Docker 29.10.0, Compo
 |---|---|---|
 | API | 2,06 GB (`golang:1.24.4`, root) | 52,7 MB (alpine, binário 29,3 MB) |
 | Front | 492 MB (`node:20-alpine` + http-server) | 93 MB (`nginx:1.30-alpine` + dist, já incluindo o proxy) |
+
+### Cobertura de testes (Fase 5)
+
+**Como:** `scripts/test.sh -coverpkg=./internal/... -coverprofile=cover.out` e `go tool cover -func=cover.out`, commit `87852c7`, mesma máquina. `-coverpkg` conta as linhas de todos os pacotes exercitadas por qualquer teste (os testes de `apitest` exercitam os controllers).
+
+**Total: 80,0% das instruções** (72,1% antes dos testes de login/usuário). Sem cobertura em teste Go: `main.go`, `ConnectDatabase`/`ConnectRedis` (cobertos pela fumaça no compose). Handlers ainda parciais nos ramos de erro interno do banco (500), que exigiriam injetar falhas.
 
 ### Linha de base do redirect (Fase 4, antes do cache)
 
@@ -313,5 +332,5 @@ O que **não** existe:
 
 ## Próximo passo
 
-Fase 5: consolidar testes (geração de código e retry de colisão, validação de URL, posse de link, redirect 200/302/404/410, auth sem token/inválido/expirado, rate limit, cache), decidir httptest + Postgres/Redis do compose em banco separado vs mocks, e CI no GitHub Actions (go vet, go test, build do front), sem deploy.
-Branch já criado a partir da `main` com as fases 0–4.
+Fase 6 (branch `fix/web`): cliente axios único com `baseURL` de `VITE_API_BASE` (padrão `/api`), remover/corrigir `URLShortnerAPI.js`, interceptor 401 (limpa token e vai ao login), `requiresAuth` em `/links`, CORS sem IPs fixos (avaliar se ainda é necessário com origem única), telas (criar com URL curta completa + copiar, lista com status e desativar, detalhe, estados de carregando/erro/vazio), teste manual ponta a ponta pelo nginx.
+Antes: decidir com o usuário de onde sai o branch da Fase 6 (`main` ainda não tem a Fase 5). O CI só roda de verdade quando algo for enviado ao GitHub.
