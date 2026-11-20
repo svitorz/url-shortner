@@ -4,8 +4,8 @@
 
 ## Fase atual
 
-**Fase 5 — testes e CI: concluída.** Aguardando "continuar" para a Fase 6.
-Branch: `test/consolidate-ci` (o plano não nomeia branch para a Fase 5), criado a partir de `main` local (merge `--no-ff` de `feat/short-code-cache`, Fase 4). Nada enviado ao remoto nesta sessão; `origin/main` estava em `cf96090` (Fase 3), enviado fora da sessão.
+**Fase 6 — front: não iniciada.** Aguardando "continuar".
+Branch: `fix/web`, criado a partir de `main` @ `b04433a` (merge `--no-ff` de `test/consolidate-ci`, Fase 5). Nada enviado ao remoto nesta sessão; `origin/main` estava em `053505d` (Fase 4), enviado fora da sessão.
 
 ## Checklist
 
@@ -333,4 +333,4 @@ O que **não** existe:
 ## Próximo passo
 
 Fase 6 (branch `fix/web`): cliente axios único com `baseURL` de `VITE_API_BASE` (padrão `/api`), remover/corrigir `URLShortnerAPI.js`, interceptor 401 (limpa token e vai ao login), `requiresAuth` em `/links`, CORS sem IPs fixos (avaliar se ainda é necessário com origem única), telas (criar com URL curta completa + copiar, lista com status e desativar, detalhe, estados de carregando/erro/vazio), teste manual ponta a ponta pelo nginx.
-Antes: decidir com o usuário de onde sai o branch da Fase 6 (`main` ainda não tem a Fase 5). O CI só roda de verdade quando algo for enviado ao GitHub.
+Branch já criado a partir da `main` com as fases 0–5. O CI só roda de verdade quando a `main` com a Fase 5 for enviada ao GitHub.
