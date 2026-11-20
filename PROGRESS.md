@@ -4,7 +4,7 @@
 
 ## Fase atual
 
-**Fase 4 — cache do redirect: em andamento.** Passo 1 (teste de carga + linha de base) feito; aguardando decisão sobre o pool de conexões antes do cache.
+**Fase 4 — cache do redirect: em andamento.** Passos: teste de carga + linha de base ✅, pool do Postgres ✅, nova linha de base ✅; próximo: cache-aside.
 Branch: `feat/short-code-cache`, criado a partir de `main` @ `cf96090` (merge `--no-ff` de `chore/infra-nginx`, Fase 3). Nada enviado ao remoto nesta sessão.
 
 ## Checklist
@@ -45,7 +45,8 @@ Branch: `feat/short-code-cache`, criado a partir de `main` @ `cf96090` (merge `-
 | 3 | `REDIS_PASSWORD` obrigatória na API (`039811d`) | ✅ `TestLoadRejectsEmptyRedisPassword` (falha sem a correção) |
 | 3 | nginx único com o front (H16, H18), compose com healthchecks, senhas `:?`, imagens fixas, sem mount do `.env` (`92d5d11`) | ✅ fumaça 43/0 + infra-check 11/0, também após `down`/`up` |
 | 4 | Teste de carga k6 (`loadtest/`) + linha de base pelo nginx | ✅ 3 rodadas, 0 erros |
-| 4 | Gargalo da linha de base: rotatividade de conexões do Postgres (`MaxIdleConns=2`) | ⚠️ medido, aguardando decisão |
+| 4 | Pool do Postgres configurado (`DB_MAX_CONNS`, `c234eed`) — decisão do usuário | ✅ `TestPoolKeepsConnectionsUnderConcurrency` (falha sem o fix) + sessões/s ~374 → ~0 |
+| 4 | Nova linha de base com o pool (`1009501`) | ✅ 3 rodadas válidas, 0 erros |
 | 4 | Cache-aside `link:<slug>` | ⏳ |
 | 5–7 | ver plano | ⏳ |
 
@@ -160,6 +161,7 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | Cache: `/assets/*` 1 ano `immutable`; resto `no-cache` | Assets do Vite têm hash no nome; o `index.html` precisa sempre revalidar para pegar o build novo |
 | 2026-11-20 | **k6 via Docker, pelo nginx, 50 VUs fixos, 3 rodadas** (decisão do usuário) | Script versionado e percentis no resumo, sem instalar nada no host; pelo nginx é o caminho real do usuário. k6 roda na rede do compose (`http://proxy`) para não passar pelo port-forward do Docker. Descartado: hey (sem checks/script), wrk (percentis só com Lua, sem imagem oficial); taxa fixa (exigiria achar a taxa sustentável sem cache) |
 | 2026-11-20 | Rate limit no teste: só o teto sobe (override do compose), o limiter segue ativo | Desligar mudaria o caminho medido; com teto alto o custo do `INCR` fica igual antes e depois do cache |
+| 2026-11-20 | **Corrigir o pool antes do cache** (decisão do usuário) | Sem isso o ganho do cache incluiria o custo de abrir conexão. Pool: abertas = ociosas = `DB_MAX_CONNS` (padrão 20, opcional), `ConnMaxIdleTime` 5 min. Descartado: ir direto ao cache e registrar como limitação |
 
 ## Contrato da API (mudanças)
 
@@ -214,6 +216,20 @@ JSON de cada rodada em `loadtest/results/baseline-{1,2,3}.json`.
 - `pg_stat_database.sessions` subiu **1870 em 5 s** de carga (~374 conexões novas/s para ~1000 req/s).
 - Causa: o `database/sql` do Go mantém por padrão só 2 conexões ociosas (`MaxIdleConns=2`) e o código não configura o pool. Com 50 requisições simultâneas, as conexões excedentes são fechadas ao voltar ao pool e reabertas na próxima consulta (fork de processo no Postgres + autenticação SCRAM).
 - Também visto: com 10 VUs (rodada de validação de 5 s) deu 1504 RPS e p50 2,85 ms; com 50 VUs a vazão cai, consistente com a rotatividade.
+
+### Linha de base com o pool corrigido (referência para o cache)
+
+**Como:** mesmo cenário e máquina, `PROXY_PORT=8088 RUN_LABEL=pool loadtest/run.sh` no commit `c234eed` (`DB_MAX_CONNS` padrão 20). Durante uma rodada de diagnóstico: `pg_stat_database.sessions` +2 em ~5 s (as duas consultas do próprio `psql`), Postgres ~98% de CPU, API ~210%, nginx ~90%.
+
+| Rodada | Requisições | RPS | p50 (ms) | p95 (ms) | p99 (ms) | máx (ms) | Erros | Checks ok |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 667309 | 11121,8167 | 3,772239 | 9,067184 | 13,093775 | 47,042506 | 0 | 100% |
+| 2 | 662459 | 11040,9833 | 3,766979 | 9,282503 | 13,431955 | 42,647827 | 0 | 100% |
+| 3 | 667098 | 11118,3000 | 3,736550 | 9,218966 | 13,356449 | 40,710927 | 0 | 100% |
+
+JSON em `loadtest/results/pool-{1,2,3}.json`. Com o pool, a vazão foi de 786–969 para 11041–11122 RPS e o p99 de 207–306 ms para 13,09–13,43 ms (mesmo cenário). O ganho é do pool, não do cache.
+
+**Execução descartada:** uma primeira tentativa com o pool teve as rodadas 2 e 3 com 89,7% e 99,9% de falhas: a API estava com `REQUISITION_LIMIT=1000` (sem o override) e respondia 429 rápido, e o Redis reiniciou no meio da rodada 3 (12:34:03, hora local, sem comando do agente; causa não identificada). Provável corrida com o `trap` de uma rodada de diagnóstico em segundo plano. Os números foram descartados e o runner passou a invalidar rodadas assim (`1009501`).
 
 ## Segurança da infra (estado na Fase 3)
 
