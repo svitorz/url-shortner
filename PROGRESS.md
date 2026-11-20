@@ -4,8 +4,8 @@
 
 ## Fase atual
 
-**Fase 6 — front: concluída.** Aguardando "continuar" para a Fase 7.
-Branch: `fix/web`, criado a partir de `main` @ `b04433a` (merge `--no-ff` de `test/consolidate-ci`, Fase 5). Nada enviado ao remoto nesta sessão; `origin/main` estava em `053505d` (Fase 4), enviado fora da sessão.
+**Fase 7 — documentação: não iniciada.** Aguardando "continuar".
+Branch: `docs/readme`, criado a partir de `main` local (merge `--no-ff` de `fix/web`, Fase 6). Nada enviado ao remoto nesta sessão; `origin/main` estava em `b04433a` (Fase 5), enviado fora da sessão.
 
 ## Checklist
 
@@ -376,4 +376,4 @@ O que **não** existe:
 ## Próximo passo
 
 Fase 7 (branch `docs/readme`): README em PT com diagrama Mermaid, como rodar, tabela de rotas fiel ao código, decisões e trade-offs, limitações, resultados do teste de carga com método; `api/docs/API.md`; perguntar o destino do `AGILE.md` (nome completo e RA do aluno); revisar o histórico do git atrás de segredos commitados, sem reescrever sem confirmação.
-Antes: decidir com o usuário de onde sai o branch da Fase 7 (`main` ainda não tem a Fase 6).
+Branch já criado a partir da `main` com as fases 0–6.
