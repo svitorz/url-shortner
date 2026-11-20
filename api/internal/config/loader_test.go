@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // setValidEnv define um ambiente completo e válido (t.Setenv restaura no fim).
 func setValidEnv(t *testing.T) {
@@ -24,6 +27,18 @@ func TestLoadValidEnv(t *testing.T) {
 	}
 	if cfg.PublicBaseURL != "http://localhost" || cfg.RateLimit.Limit != 100 {
 		t.Fatalf("config inesperada: %+v", cfg)
+	}
+}
+
+func TestLoadRejectsShortAPIKey(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("API_KEY", "curta-demais")
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load aceitou API_KEY de 12 bytes")
+	}
+	if strings.Contains(err.Error(), "curta-demais") {
+		t.Fatal("a mensagem de erro expõe o valor da chave")
 	}
 }
 

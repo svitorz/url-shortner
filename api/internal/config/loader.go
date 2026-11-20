@@ -46,7 +46,7 @@ func Load() (*Config, error) {
 		HashCost:       r.int("HASH_COST"),
 		TrustedProxies: r.ipList("TRUSTED_PROXIES"),
 		Api: ApiConfig{
-			ApiKey:        r.str("API_KEY"),
+			ApiKey:        r.secret("API_KEY", minAPIKeyBytes),
 			TokenLifeSpan: int64(r.int("TOKEN_LIFE_SPAN")),
 		},
 		Db: DbConfig{
@@ -75,6 +75,10 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// minAPIKeyBytes: HS256 usa HMAC-SHA256; uma chave curta pode ser quebrada
+// por força bruta offline a partir de qualquer token emitido.
+const minAPIKeyBytes = 32
+
 // reader acumula erros para reportar todas as variáveis problemáticas de uma vez.
 type reader struct{ errs []error }
 
@@ -82,6 +86,15 @@ func (r *reader) str(key string) string {
 	v := os.Getenv(key)
 	if v == "" {
 		r.errs = append(r.errs, fmt.Errorf("  %s: obrigatória e está vazia", key))
+	}
+	return v
+}
+
+// secret exige um valor com pelo menos min bytes (não imprime o valor).
+func (r *reader) secret(key string, min int) string {
+	v := r.str(key)
+	if v != "" && len(v) < min {
+		r.errs = append(r.errs, fmt.Errorf("  %s: precisa de pelo menos %d bytes (tem %d); gere com: openssl rand -hex 32", key, min, len(v)))
 	}
 	return v
 }
