@@ -4,8 +4,8 @@
 
 ## Fase atual
 
-**Fase 2 — correções da API: concluída.** Aguardando "continuar" para a Fase 3.
-Branch: `fix/api-stabilize` (criado a partir de `main` @ `f15ea2a`), com as fases 0–2. Nada enviado ao remoto.
+**Fase 3 — infra (nginx, Dockerfiles, compose): não iniciada.** Aguardando "continuar".
+Branch: `chore/infra-nginx`, criado a partir de `main` @ `9a7f8a1` (merge `--no-ff` de `fix/api-stabilize`, fases 0–2). Nada enviado ao remoto.
 
 ## Checklist
 
@@ -138,6 +138,7 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | Log de acesso sem query string; GORM com `ParameterizedQueries` | O `gin.Logger` e o logger padrão do GORM vazavam token (query) e e-mail/hash (valores do SQL) |
 | 2026-11-20 | `API_KEY` mínima de 32 bytes | HS256 com chave curta é quebrável offline a partir de um token |
 | 2026-11-20 | Mensagens de erro novas em português | Projeto e front em PT; mensagens antigas do login (`Invalid email or password`) mantidas para não quebrar o front |
+| 2026-11-20 | **`fix/api-stabilize` mergeado na `main` (local, `--no-ff`) antes da Fase 3** (decisão do usuário) | Cada fase seguinte sai de uma `main` que já tem o trabalho anterior. `--no-ff` deixa o commit de merge marcando o fim das fases 0–2. Descartado: empilhar `chore/infra-nginx` sobre `fix/api-stabilize` (PRs dependentes em cadeia) |
 
 ## Contrato da API (mudanças)
 
@@ -191,4 +192,4 @@ Nenhuma ainda.
 ## Próximo passo
 
 Fase 3 (branch `chore/infra-nginx`): Dockerfile multi-stage da API (não-root), front servido por nginx com `try_files` e gzip (resolve o 502 do H16), proxy com `/api` e `/r/`, healthchecks (db com `POSTGRES_*`, api com endpoint de health), exigir `REDIS_PASSWORD`, documentar segurança/TLS.
-Decidir com o usuário antes: o branch `chore/infra-nginx` sai de `fix/api-stabilize` (recomendado: a `main` ainda não tem as fases 0–2) ou `fix/api-stabilize` é mergeado na `main` primeiro.
+Branch já criado a partir da `main` com as fases 0–2.
