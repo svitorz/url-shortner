@@ -43,13 +43,37 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "$HOST_URL/r/$slug")
 [[ $code == 302 ]] || { echo "redirect do slug de teste deu $code"; exit 1; }
 echo "   slug=$slug"
 
+# Estado que invalida uma rodada se mudar durante ela: limite em vigor na API
+# e o início de cada container (reinício = rodada contaminada).
+state() {
+  printf 'limit=%s ' "$(docker compose exec -T api printenv REQUISITION_LIMIT | tr -d '\r')"
+  for s in api redis db proxy; do
+    printf '%s=%s ' "$s" "$(docker inspect -f '{{.State.StartedAt}}' "url-shortner-$s")"
+  done
+}
+
 mkdir -p "$OUT_DIR"
+invalid=0
 for i in $(seq 1 "$RUNS"); do
   echo "== rodada $i/$RUNS ($VUS VUs, aquecimento $WARMUP, medição $DURATION)"
+  before=$(state)
+  [[ $before == limit=1000000000\ * ]] || { echo "API sem o override de rate limit: $before"; exit 1; }
   docker run --rm --network "$NETWORK" -u "$(id -u):$(id -g)" \
     -v "$(pwd)/loadtest:/scripts:ro" -v "$OUT_DIR:/out" \
     -e BASE_URL=http://proxy -e SLUG="$slug" -e VUS="$VUS" -e WARMUP="$WARMUP" \
     -e DURATION="$DURATION" -e RUN_NAME="$RUN_LABEL-$i" \
     "$K6_IMAGE" run --quiet /scripts/redirect.js
+  after=$(state)
+  f="$OUT_DIR/$RUN_LABEL-$i.json"
+  problems=()
+  [[ $before == "$after" ]] || problems+=("ambiente mudou durante a rodada: antes [$before] depois [$after]")
+  [[ $(jq -r .http_req_failed_rate "$f") == 0 ]] || problems+=("houve requisições com erro")
+  [[ $(jq -r .checks_ok_rate "$f") == 1 ]] || problems+=("houve respostas diferentes de 302")
+  if ((${#problems[@]})); then
+    invalid=1
+    jq --arg p "${problems[*]}" '. + {invalid: $p}' "$f" >"$f.tmp" && mv "$f.tmp" "$f"
+    printf 'RODADA INVÁLIDA: %s\n' "${problems[@]}"
+  fi
 done
 echo "== resultados em loadtest/results/$RUN_LABEL-*.json"
+exit "$invalid"
