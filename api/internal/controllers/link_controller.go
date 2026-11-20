@@ -60,9 +60,7 @@ func (h *Controller) CreateLink(c *gin.Context) {
 	// Sobrescreve um eventual cache negativo deste código.
 	h.cachePut(c, link.Slug, linkcache.Entry{Found: true, Active: true, Target: link.TargetURL})
 
-	// A URL curta vem da configuração, não do header Host: Host é controlado
-	// pelo cliente e, atrás do nginx, perde a porta.
-	redirectURL := h.BaseURL + "/r/" + slugified
+	redirectURL := h.shortURL(slugified)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"id":    link.ID,
@@ -89,15 +87,20 @@ func (h *Controller) GetAllLinks(c *gin.Context) {
 
 	responseLinks := make([]map[string]any, 0, len(links))
 	for _, element := range links {
-		responseLinks = append(responseLinks, linkResponse(element))
+		responseLinks = append(responseLinks, h.linkResponse(element))
 	}
 
 	c.JSON(http.StatusOK, gin.H{"links": responseLinks})
 }
 
-func linkResponse(l models.Link) map[string]any {
+// shortURL vem da configuração (PUBLIC_BASE_URL), não do header Host: Host é
+// controlado pelo cliente e, atrás do nginx, perde a porta.
+func (h *Controller) shortURL(slug string) string { return h.BaseURL + "/r/" + slug }
+
+func (h *Controller) linkResponse(l models.Link) map[string]any {
 	return map[string]any{
 		"slug":        l.Slug,
+		"url":         h.shortURL(l.Slug),
 		"target_url":  l.TargetURL,
 		"is_active":   l.IsActive,
 		"last_change": l.UpdatedAt,
@@ -142,7 +145,7 @@ func (h *Controller) GetLinkDetails(c *gin.Context) {
 	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"link": linkResponse(link)})
+	c.JSON(http.StatusOK, gin.H{"link": h.linkResponse(link)})
 }
 
 func (h *Controller) DeactivateLink(c *gin.Context) {
