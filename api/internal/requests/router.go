@@ -29,7 +29,13 @@ func SetupRouter(ctl *controllers.Controller, rl *ratelimit.RateLimiter, trusted
 		MaxAge:           12 * time.Hour,
 	}))
 
-	r.Use(gin.LoggerWithFormatter(logLine), gin.Recovery(), middleware.RateLimiterMiddleware(rl))
+	// /healthz fica fora do log de acesso: o healthcheck do compose bate a cada
+	// poucos segundos e afogaria as linhas úteis.
+	accessLog := gin.LoggerWithConfig(gin.LoggerConfig{Formatter: logLine, SkipPaths: []string{"/healthz"}})
+	r.Use(accessLog, gin.Recovery(), middleware.RateLimiterMiddleware(rl))
+
+	// Healthcheck do container (o nginx não encaminha esta rota).
+	r.GET("/healthz", ctl.Health)
 
 	// Rota pública da URL curta, fora de /api (o nginx encaminha /r/ para a API).
 	r.GET("/r/:slug", ctl.LinkRedirect)
