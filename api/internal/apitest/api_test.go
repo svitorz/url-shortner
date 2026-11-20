@@ -279,3 +279,61 @@ func TestRateLimitThroughRouter(t *testing.T) {
 		t.Fatalf("4ª requisição: %d, esperado 429", got)
 	}
 }
+
+// ---------- usuários e login ----------
+
+func TestLogin(t *testing.T) {
+	e := newEnv(t, 1000)
+	email := fmt.Sprintf("login-%d@test.example", time.Now().UnixNano())
+	if got := e.req("POST", "/api/user", "", map[string]string{"full_name": "L", "email": email, "password": "senha-forte-123"}).code; got != http.StatusCreated {
+		t.Fatalf("cadastro: %d", got)
+	}
+
+	ok := e.req("POST", "/api/login", "", map[string]string{"email": email, "password": "senha-forte-123"})
+	tok, _ := ok.body["token"].(string)
+	if ok.code != http.StatusOK || tok == "" {
+		t.Fatalf("login correto: %d %v", ok.code, ok.body)
+	}
+	if got := e.req("GET", "/api/links", tok, nil).code; got != http.StatusOK {
+		t.Fatalf("token do login não autentica: %d", got)
+	}
+
+	wrong := e.req("POST", "/api/login", "", map[string]string{"email": email, "password": "senha-errada-123"})
+	unknown := e.req("POST", "/api/login", "", map[string]string{"email": "ninguem@test.example", "password": "senha-forte-123"})
+	if wrong.code != http.StatusUnauthorized || unknown.code != http.StatusUnauthorized {
+		t.Fatalf("senha errada %d / e-mail inexistente %d, esperado 401/401", wrong.code, unknown.code)
+	}
+	// Sem enumeração: mesma resposta para os dois casos.
+	if fmt.Sprint(wrong.body) != fmt.Sprint(unknown.body) {
+		t.Fatalf("respostas diferentes revelam se o e-mail existe: %v vs %v", wrong.body, unknown.body)
+	}
+}
+
+func TestUserConflictsAndValidation(t *testing.T) {
+	e := newEnv(t, 1000)
+	email := fmt.Sprintf("dup-%d@test.example", time.Now().UnixNano())
+	body := map[string]string{"full_name": "D", "email": email, "password": "senha-forte-123"}
+	if got := e.req("POST", "/api/user", "", body).code; got != http.StatusCreated {
+		t.Fatalf("cadastro: %d", got)
+	}
+	if got := e.req("POST", "/api/user", "", body).code; got != http.StatusConflict {
+		t.Errorf("e-mail duplicado: %d, esperado 409", got)
+	}
+	long := map[string]string{"full_name": "D", "email": "longa-" + email, "password": string(bytes.Repeat([]byte("a"), 73))}
+	if got := e.req("POST", "/api/user", "", long).code; got != http.StatusUnprocessableEntity {
+		t.Errorf("senha de 73 bytes: %d, esperado 422", got)
+	}
+
+	tok, uid := e.register("upd")
+	path := fmt.Sprintf("/api/user/%d", uid)
+	newEmail := fmt.Sprintf("novo-%d@test.example", time.Now().UnixNano())
+	if got := e.req("PUT", path, tok, map[string]string{"full_name": "Novo", "email": newEmail}).code; got != http.StatusOK {
+		t.Errorf("atualizar a si mesmo: %d, esperado 200", got)
+	}
+	if got := e.req("PUT", path, tok, map[string]string{"full_name": "Novo", "email": email}).code; got != http.StatusConflict {
+		t.Errorf("atualizar para e-mail de outro: %d, esperado 409", got)
+	}
+	if got := e.req("PUT", path, tok, map[string]string{"full_name": "Novo"}).code; got != http.StatusUnprocessableEntity {
+		t.Errorf("corpo inválido do próprio usuário: %d, esperado 422", got)
+	}
+}
