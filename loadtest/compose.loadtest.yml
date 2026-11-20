@@ -1,0 +1,10 @@
+# Override só para o teste de carga: o k6 vem de um único IP, então o rate
+# limit (REQUISITION_LIMIT por janela) bloquearia quase tudo com 429.
+# `environment` tem precedência sobre o env_file (.env).
+# O rate limiter continua ATIVO (um INCR no Redis por requisição), só o teto sobe.
+#
+# Uso: docker compose -f docker-compose.yml -f loadtest/compose.loadtest.yml up -d api
+services:
+  api:
+    environment:
+      REQUISITION_LIMIT: "1000000000"

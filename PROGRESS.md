@@ -4,7 +4,7 @@
 
 ## Fase atual
 
-**Fase 4 — cache do redirect: não iniciada.** Aguardando "continuar".
+**Fase 4 — cache do redirect: em andamento.** Passo 1 (teste de carga + linha de base) feito; aguardando decisão sobre o pool de conexões antes do cache.
 Branch: `feat/short-code-cache`, criado a partir de `main` @ `cf96090` (merge `--no-ff` de `chore/infra-nginx`, Fase 3). Nada enviado ao remoto nesta sessão.
 
 ## Checklist
@@ -44,7 +44,10 @@ Branch: `feat/short-code-cache`, criado a partir de `main` @ `cf96090` (merge `-
 | 3 | Dockerfile da API multi-stage, alpine, UID 10001, `GIN_MODE=release` (`6f2a861`) | ✅ infra-check `id -u`; 2,06 GB → 52,7 MB |
 | 3 | `REDIS_PASSWORD` obrigatória na API (`039811d`) | ✅ `TestLoadRejectsEmptyRedisPassword` (falha sem a correção) |
 | 3 | nginx único com o front (H16, H18), compose com healthchecks, senhas `:?`, imagens fixas, sem mount do `.env` (`92d5d11`) | ✅ fumaça 43/0 + infra-check 11/0, também após `down`/`up` |
-| 4–7 | ver plano | ⏳ |
+| 4 | Teste de carga k6 (`loadtest/`) + linha de base pelo nginx | ✅ 3 rodadas, 0 erros |
+| 4 | Gargalo da linha de base: rotatividade de conexões do Postgres (`MaxIdleConns=2`) | ⚠️ medido, aguardando decisão |
+| 4 | Cache-aside `link:<slug>` | ⏳ |
+| 5–7 | ver plano | ⏳ |
 
 ## Como subir (estado atual)
 
@@ -155,6 +158,8 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | Upstream `api:${APP_PORT}` via `/etc/nginx/templates` da imagem oficial | Porta deixa de ser fixa no nginx (H18) sem script próprio; `$host` etc. ficam intactos porque não existem no ambiente |
 | 2026-11-20 | Imagens com versão fixa: `nginx:1.30-alpine`, `node:24-alpine`, `golang:1.24.4-alpine`, `alpine:3.22`, `redis:8-alpine`, `postgres:18` | `latest` muda sem aviso; Redis ≥ 7 é requisito (`EXPIRE NX`). Node 24 porque o 20 saiu de suporte |
 | 2026-11-20 | Cache: `/assets/*` 1 ano `immutable`; resto `no-cache` | Assets do Vite têm hash no nome; o `index.html` precisa sempre revalidar para pegar o build novo |
+| 2026-11-20 | **k6 via Docker, pelo nginx, 50 VUs fixos, 3 rodadas** (decisão do usuário) | Script versionado e percentis no resumo, sem instalar nada no host; pelo nginx é o caminho real do usuário. k6 roda na rede do compose (`http://proxy`) para não passar pelo port-forward do Docker. Descartado: hey (sem checks/script), wrk (percentis só com Lua, sem imagem oficial); taxa fixa (exigiria achar a taxa sustentável sem cache) |
+| 2026-11-20 | Rate limit no teste: só o teto sobe (override do compose), o limiter segue ativo | Desligar mudaria o caminho medido; com teto alto o custo do `INCR` fica igual antes e depois do cache |
 
 ## Contrato da API (mudanças)
 
@@ -188,7 +193,27 @@ Tamanho de imagem (não é desempenho): `docker image ls`, Docker 29.10.0, Compo
 | API | 2,06 GB (`golang:1.24.4`, root) | 52,7 MB (alpine, binário 29,3 MB) |
 | Front | 492 MB (`node:20-alpine` + http-server) | 93 MB (`nginx:1.30-alpine` + dist, já incluindo o proxy) |
 
-Desempenho: nenhuma medição ainda (Fase 4).
+### Linha de base do redirect (Fase 4, antes do cache)
+
+**Como:** `PROXY_PORT=8088 RUN_LABEL=baseline loadtest/run.sh` no commit `f905890`. k6 2.4.0 (imagem `grafana/k6:2.4.0`) num container na rede do compose, batendo em `http://proxy/r/<slug>` (nginx → API → Postgres), sem seguir o redirect. Modelo fechado: 50 VUs em loop sem pausa, 10 s de aquecimento descartados + 60 s medidos, 3 rodadas seguidas. RPS = requisições do cenário medido ÷ 60 s. Rate limit **ativo** com teto `REQUISITION_LIMIT=1000000000` via `loadtest/compose.loadtest.yml` (ainda faz um `INCR` no Redis por requisição). Log de acesso do Gin ligado (como em produção).
+
+**Máquina:** notebook Intel i5-1135G7 (4 núcleos / 8 threads, até 4,2 GHz), 7,5 GB de RAM (1,7 GB livres no início), Debian 13, kernel 6.12.117, Docker 29.10.0, Compose v5.8.0. Imagens: `postgres:18`, `redis:8-alpine` (8.10.3), `nginx:1.30-alpine`, API em Go 1.24.4.
+
+| Rodada | Requisições | RPS | p50 (ms) | p95 (ms) | p99 (ms) | máx (ms) | Erros | Checks ok |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 58141 | 969,0166 | 21,349092 | 157,975374 | 207,758357 | 373,351388 | 0 | 100% |
+| 2 | 57538 | 958,9667 | 20,298566 | 161,729853 | 212,808172 | 395,778524 | 0 | 100% |
+| 3 | 47186 | 786,4333 | 23,837930 | 211,394075 | 305,585441 | 593,384483 | 0 | 100% |
+
+JSON de cada rodada em `loadtest/results/baseline-{1,2,3}.json`.
+
+**Limitações:** gerador de carga, nginx, API, Postgres e Redis na **mesma máquina**, disputando os mesmos 8 threads; outros 12 containers de outros projetos rodando (um deles, `lumiundns`, usou ~59% de CPU durante a carga); notebook sujeito a escalonamento de frequência/temperatura (provável causa da rodada 3 mais lenta, não verificado). Um único slug (cenário de cache ideal: 100% de acerto quando houver cache). Sem rede real entre cliente e servidor.
+
+**Diagnóstico (rodadas extras, fora da linha de base):**
+- `docker stats` no meio de 30 s de carga: Postgres **402%** de CPU, API 131%, nginx 17%, Redis 7%; load average 37,99.
+- `pg_stat_database.sessions` subiu **1870 em 5 s** de carga (~374 conexões novas/s para ~1000 req/s).
+- Causa: o `database/sql` do Go mantém por padrão só 2 conexões ociosas (`MaxIdleConns=2`) e o código não configura o pool. Com 50 requisições simultâneas, as conexões excedentes são fechadas ao voltar ao pool e reabertas na próxima consulta (fork de processo no Postgres + autenticação SCRAM).
+- Também visto: com 10 VUs (rodada de validação de 5 s) deu 1504 RPS e p50 2,85 ms; com 50 VUs a vazão cai, consistente com a rotatividade.
 
 ## Segurança da infra (estado na Fase 3)
 
