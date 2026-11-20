@@ -24,9 +24,14 @@ check "db sem porta publicada no host" "" "$(published db)"
 check "redis sem porta publicada no host" "" "$(published redis)"
 check "api publicada só no loopback" "127\\.0\\.0\\.1:[0-9]+" "$(published api)"
 
+# Espera até 60 s sair de "starting" (ex.: logo após um restart).
 for s in db redis api; do
-  h=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}sem-healthcheck{{end}}' \
-    "$(docker compose ps -q "$s")" 2>/dev/null)
+  for _ in $(seq 1 60); do
+    h=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}sem-healthcheck{{end}}' \
+      "$(docker compose ps -q "$s")" 2>/dev/null)
+    [[ $h == starting ]] || break
+    sleep 1
+  done
   check "$s healthy" "healthy" "$h"
 done
 
@@ -37,7 +42,9 @@ r=$(docker compose exec -T redis sh -c 'unset REDISCLI_AUTH; redis-cli ping' 2>&
 check "redis recusa comando sem senha" "NOAUTH.*" "$r"
 
 # Sem a variável, o compose deve recusar subir com mensagem clara.
-for v in REDIS_PASSWORD DB_PASSWORD API_KEY; do
+# (API_KEY não entra na interpolação do compose; a API recusa no boot, ver
+# config/loader_test.go.)
+for v in REDIS_PASSWORD DB_PASSWORD; do
   out=$(env "$v=" docker compose config 2>&1 >/dev/null)
   check "compose recusa $v vazia" ".*$v.*obrigat.*" "$out"
 done
