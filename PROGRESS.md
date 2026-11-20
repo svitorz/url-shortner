@@ -4,8 +4,8 @@
 
 ## Fase atual
 
-**Fase 4 — cache do redirect: concluída.** Aguardando "continuar" para a Fase 5.
-Branch: `feat/short-code-cache`, criado a partir de `main` @ `cf96090` (merge `--no-ff` de `chore/infra-nginx`, Fase 3). Nada enviado ao remoto nesta sessão.
+**Fase 5 — testes e CI: não iniciada.** Aguardando "continuar".
+Branch: `test/consolidate-ci` (o plano não nomeia branch para a Fase 5), criado a partir de `main` local (merge `--no-ff` de `feat/short-code-cache`, Fase 4). Nada enviado ao remoto nesta sessão; `origin/main` estava em `cf96090` (Fase 3), enviado fora da sessão.
 
 ## Checklist
 
@@ -314,4 +314,4 @@ O que **não** existe:
 ## Próximo passo
 
 Fase 5: consolidar testes (geração de código e retry de colisão, validação de URL, posse de link, redirect 200/302/404/410, auth sem token/inválido/expirado, rate limit, cache), decidir httptest + Postgres/Redis do compose em banco separado vs mocks, e CI no GitHub Actions (go vet, go test, build do front), sem deploy.
-Antes: decidir com o usuário de onde sai o branch da Fase 5 (`main` ainda não tem a Fase 4).
+Branch já criado a partir da `main` com as fases 0–4.
