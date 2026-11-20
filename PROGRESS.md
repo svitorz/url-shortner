@@ -4,7 +4,7 @@
 
 ## Fase atual
 
-**Fase 4 — cache do redirect: em andamento.** Passos: teste de carga + linha de base ✅, pool do Postgres ✅, nova linha de base ✅; próximo: cache-aside.
+**Fase 4 — cache do redirect: concluída.** Aguardando "continuar" para a Fase 5.
 Branch: `feat/short-code-cache`, criado a partir de `main` @ `cf96090` (merge `--no-ff` de `chore/infra-nginx`, Fase 3). Nada enviado ao remoto nesta sessão.
 
 ## Checklist
@@ -47,7 +47,9 @@ Branch: `feat/short-code-cache`, criado a partir de `main` @ `cf96090` (merge `-
 | 4 | Teste de carga k6 (`loadtest/`) + linha de base pelo nginx | ✅ 3 rodadas, 0 erros |
 | 4 | Pool do Postgres configurado (`DB_MAX_CONNS`, `c234eed`) — decisão do usuário | ✅ `TestPoolKeepsConnectionsUnderConcurrency` (falha sem o fix) + sessões/s ~374 → ~0 |
 | 4 | Nova linha de base com o pool (`1009501`) | ✅ 3 rodadas válidas, 0 erros |
-| 4 | Cache-aside `link:<slug>` | ⏳ |
+| 4 | Cliente Redis respeita prazo do context (`46baa72`) | ✅ `TestRedisHangingTimesOut` (3,001 s → 0,10 s) + `TestRedisOptionsRespectContextDeadline` |
+| 4 | Cache-aside `link:<slug>`, TTL por env, cache negativo, invalidação, fallback ao banco (`d1dd972`) | ✅ 7 testes `linkcache` + 6 de integração (Postgres real + miniredis); 4 provas reversas falham sem cada parte; fumaça 43/0 |
+| 4 | Teste de carga com cache | ✅ 3 rodadas válidas, 0 erros |
 | 5–7 | ver plano | ⏳ |
 
 ## Como subir (estado atual)
@@ -162,6 +164,12 @@ Ver relatório completo na conversa da Fase 0; cada item será tratado na fase c
 | 2026-11-20 | **k6 via Docker, pelo nginx, 50 VUs fixos, 3 rodadas** (decisão do usuário) | Script versionado e percentis no resumo, sem instalar nada no host; pelo nginx é o caminho real do usuário. k6 roda na rede do compose (`http://proxy`) para não passar pelo port-forward do Docker. Descartado: hey (sem checks/script), wrk (percentis só com Lua, sem imagem oficial); taxa fixa (exigiria achar a taxa sustentável sem cache) |
 | 2026-11-20 | Rate limit no teste: só o teto sobe (override do compose), o limiter segue ativo | Desligar mudaria o caminho medido; com teto alto o custo do `INCR` fica igual antes e depois do cache |
 | 2026-11-20 | **Corrigir o pool antes do cache** (decisão do usuário) | Sem isso o ganho do cache incluiria o custo de abrir conexão. Pool: abertas = ociosas = `DB_MAX_CONNS` (padrão 20, opcional), `ConnMaxIdleTime` 5 min. Descartado: ir direto ao cache e registrar como limitação |
+| 2026-11-20 | Cache: leitura preenche com `SET NX`; escritas **sobrescrevem** com o estado novo (não `DEL`) | Fecha a corrida do cache-aside: leitor lê "ativo" no banco, dono desativa, leitor grava o velho. Com NX + sobrescrita, a escrita sempre vence. Descartado: `DEL` na escrita (corrida reabre até o TTL); versão/lock (complexo demais aqui) |
+| 2026-11-20 | Invalidação também em criar link e excluir usuário | Criar sobrescreve um cache negativo do mesmo código. A FK apaga os links em cascata sem passar pela aplicação, então `DeleteUser` lê os slugs antes e os marca como inexistentes. Descartado: aceitar até 10 min de links "fantasmas" |
+| 2026-11-20 | Valores curtos (`a:<url>`, `i`, `n`) em vez de JSON | Uma string por chave, sem serialização; cobre tudo que o redirect usa |
+| 2026-11-20 | TTL 600 s positivo / 30 s negativo, opcionais por env | Positivo só limita o pior caso de uma escrita no Redis que falhou (a desativação já sobrescreve). Negativo curto porque um código inexistente pode passar a existir |
+| 2026-11-20 | Timeout de 100 ms por operação de cache + `ContextTimeoutEnabled` no cliente | Redis travado vira miss rápido e o redirect vai ao banco. Sem a opção, o go-redis ignora o prazo (medido: 3,001 s) |
+| 2026-11-20 | Erro de Redis no cache = miss (vai ao banco), só log | Mesmo princípio do rate limiter (fail open): Redis fora deixa o redirect mais lento, não quebrado |
 
 ## Contrato da API (mudanças)
 
@@ -231,6 +239,33 @@ JSON em `loadtest/results/pool-{1,2,3}.json`. Com o pool, a vazão foi de 786–
 
 **Execução descartada:** uma primeira tentativa com o pool teve as rodadas 2 e 3 com 89,7% e 99,9% de falhas: a API estava com `REQUISITION_LIMIT=1000` (sem o override) e respondia 429 rápido, e o Redis reiniciou no meio da rodada 3 (12:34:03, hora local, sem comando do agente; causa não identificada). Provável corrida com o `trap` de uma rodada de diagnóstico em segundo plano. Os números foram descartados e o runner passou a invalidar rodadas assim (`1009501`).
 
+### Com o cache (resultado da Fase 4)
+
+**Como:** mesmo cenário, máquina e runner, `PROXY_PORT=8088 RUN_LABEL=cache loadtest/run.sh` no commit `d1dd972` (`LINK_CACHE_TTL_SECONDS` 600). Rodadas seguidas, sem nada em paralelo.
+
+| Rodada | Requisições | RPS | p50 (ms) | p95 (ms) | p99 (ms) | máx (ms) | Erros | Checks ok |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 890282 | 14838,0333 | 2,810922 | 6,934497 | 10,077872 | 71,738582 | 0 | 100% |
+| 2 | 907979 | 15132,9833 | 2,799386 | 6,531091 | 9,417925 | 33,740340 | 0 | 100% |
+| 3 | 831507 | 13858,4500 | 2,996212 | 7,410544 | 11,139275 | 56,515323 | 0 | 100% |
+
+JSON em `loadtest/results/cache-{1,2,3}.json`.
+
+**Comparação (faixas das 3 rodadas, sem média):**
+
+| | Original (`f905890`) | Pool (`c234eed`) | Pool + cache (`d1dd972`) |
+|---|---|---|---|
+| RPS | 786,4333–969,0167 | 11040,9833–11121,8167 | 13858,4500–15132,9833 |
+| p50 (ms) | 20,298566–23,837930 | 3,736550–3,772239 | 2,799386–2,996212 |
+| p95 (ms) | 157,975374–211,394075 | 9,067184–9,282503 | 6,531091–7,410544 |
+| p99 (ms) | 207,758357–305,585441 | 13,093775–13,431955 | 9,417925–11,139275 |
+
+O cache aumentou a vazão (a pior rodada com cache, 13858, ficou acima da melhor sem cache, 11122) e baixou p50/p95/p99 em todas as rodadas. O ganho é bem menor que o do pool: depois do pool, o banco já respondia rápido a uma busca por índice.
+
+**Diagnóstico com cache (rodada extra de 20 s, fora da tabela):** Redis `keyspace_hits` +323170 e `keyspace_misses` inalterado (1, o primeiro acesso); Postgres fora do topo do `docker stats`. Maiores consumidores de CPU: o **container do k6, 235%**, API 179%, nginx 95%, Redis 47%. O gargalo passou a ser a própria máquina compartilhada com o gerador de carga.
+
+**Limitações específicas:** com 1 slug, o cenário é 100% de acerto (o melhor caso do cache); com muitos slugs e acesso espalhado, a taxa de acerto e o ganho seriam menores. O k6 na mesma máquina limita o teto medido, então o ganho do cache aqui é um limite inferior, não o teto. Não houve teste com Redis fora sob carga.
+
 ## Segurança da infra (estado na Fase 3)
 
 O que existe:
@@ -267,11 +302,16 @@ O que **não** existe:
 - Durante a Fase 3, o checkout local passou de `chore/infra-nginx` para `main` sem comando do agente (reflog, 11:27:31). 4 commits caíram na `main` local e foram reaplicados no branch certo; com o ok do usuário, a `main` local voltou a `9a7f8a1` (`git branch -f`, depois de conferir que o branch contém tudo). `origin/main` também está em `9a7f8a1`: o merge das fases 0–2 foi enviado ao remoto fora desta sessão.
 - DSN fixa `TimeZone=America/Sao_Paulo` (`config/database.go:21`).
 
+- O rate limiter usa o context da requisição, sem prazo: com o Redis **travado** (não recusando conexão), cada requisição espera o `ReadTimeout` de 3 s antes do fail open. O cache não tem esse problema (100 ms).
+- Com Redis fora, cache e rate limiter logam uma linha por requisição (pode inundar o log).
+- Arquivos de rodadas de diagnóstico não versionados em `loadtest/results/` (`smoke-1`, `diag-1`, `diag2-1`, `diag3-1`, `diag4-1`); podem ser apagados pelo usuário.
+
 ## Ideias futuras
 
-- (vazio)
+- **Contagem de cliques:** `INCR clicks:<slug>` no Redis a cada redirect + flush assíncrono periódico para o Postgres (ex.: a cada N s, `GETDEL` e `UPDATE links SET clicks = clicks + n`). Trade-off: não pesa no redirect nem faz escrita no banco por requisição, mas perde os cliques ainda não descarregados se o Redis cair sem persistência, e a contagem no banco fica atrasada em até N s. A alternativa (escrever no banco a cada clique) é exata e simples, mas põe uma escrita no caminho mais quente.
+- Teste de carga com muitos slugs (distribuição tipo Zipf) para medir taxa de acerto realista, e com o gerador de carga em outra máquina.
 
 ## Próximo passo
 
-Fase 4 (branch `feat/short-code-cache`): primeiro o teste de carga (escolher k6 vs hey/wrk) no redirect de um slug existente, com `REQUISITION_LIMIT` alto, e a linha de base; depois o cache-aside `link:<slug>` com TTL por env, invalidação ao desativar e cache negativo curto; rodar de novo e comparar.
-Branch já criado a partir da `main` com as fases 0–3.
+Fase 5: consolidar testes (geração de código e retry de colisão, validação de URL, posse de link, redirect 200/302/404/410, auth sem token/inválido/expirado, rate limit, cache), decidir httptest + Postgres/Redis do compose em banco separado vs mocks, e CI no GitHub Actions (go vet, go test, build do front), sem deploy.
+Antes: decidir com o usuário de onde sai o branch da Fase 5 (`main` ainda não tem a Fase 4).
