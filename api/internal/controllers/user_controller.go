@@ -83,11 +83,8 @@ func (h *Controller) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
-		return
-	}
-
+	// Autorização antes de validar o corpo: quem não pode editar este id
+	// recebe 403 qualquer que seja o JSON enviado.
 	id, err := h.Tokens.ExtractTokenID(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "token inválido"})
@@ -96,6 +93,11 @@ func (h *Controller) UpdateUser(c *gin.Context) {
 
 	if id != bind.ID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para editar outro usuário"})
+		return
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
 
