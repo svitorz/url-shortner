@@ -57,7 +57,7 @@ jobs:
         run: go test -count=1 -cover ./...
 
   web:
-    name: Front (build)
+    name: Front (lint, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -70,4 +70,6 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      # Sem --fix (o script "lint" do package.json corrige; aqui só verifica).
+      - run: npx eslint .
       - run: npm run build
