@@ -3,7 +3,6 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"svitorz/url-shortner/internal/models"
 	"svitorz/url-shortner/internal/shortcode"
 
@@ -30,9 +29,8 @@ func (h *Controller) CreateLink(c *gin.Context) {
 		return
 	}
 
-	parsed, err := url.Parse(input.TargetUrl)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid target_url"})
+	if err := validateTargetURL(input.TargetUrl); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
 
